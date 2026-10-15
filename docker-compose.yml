@@ -1,0 +1,22 @@
+services:
+  whatsapp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8766:8765"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PORT=8765
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/data
+      - NODE_ENV=production
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - MCP_API_KEY=${MCP_API_KEY:-}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - READ_ONLY=${READ_ONLY:-true}

@@ -1,0 +1,26 @@
+# Dependências e builds
+node_modules/
+dist/
+web/node_modules/
+web/dist/
+
+# Dados locais sensíveis (WhatsApp tokens, mensagens, bancos, mídias)
+data/
+auth/
+media/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Arquivos de ambiente e segredos
+.env
+.env.*
+!.env.example
+
+# Logs e arquivos do sistema
+*.log
+.DS_Store
+.idea/
+.vscode/

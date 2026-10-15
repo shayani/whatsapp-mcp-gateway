@@ -6,6 +6,7 @@ import { setSetting, getEffectiveGroqApiKey } from '../../db/settings.js';
 import { messageFilter } from '../../whatsapp/filter.js';
 import { transcriptionQueue } from '../../transcription/queue.js';
 import { config } from '../../config.js';
+import { whatsappService } from '../../whatsapp/connection.js';
 
 export const apiRoutes: FastifyPluginAsync = async (fastify) => {
   // Middleware de proteção básica se DASHBOARD_PASSWORD estiver configurado
@@ -84,6 +85,10 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { jid } = paramsSchema.parse(req.params);
     const { limit, before } = querySchema.parse(req.query);
+
+    if (jid.endsWith('@g.us')) {
+      whatsappService.syncGroupMetadata(jid).catch(() => {});
+    }
 
     const messages = listChatMessages(jid, limit, before);
     return { messages };

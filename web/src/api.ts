@@ -23,6 +23,7 @@ export interface Message {
   id: string;
   chat_jid: string;
   sender_jid: string;
+  sender_name?: string | null;
   from_me: number;
   timestamp: number;
   message_type: string;
@@ -37,6 +38,7 @@ export interface SearchResult {
   transcription_text: string | null;
   timestamp: number;
   sender_jid: string;
+  sender_name?: string | null;
   from_me: number;
   message_type: string;
 }

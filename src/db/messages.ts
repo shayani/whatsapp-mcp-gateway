@@ -6,6 +6,7 @@ export interface Message {
   id: string;
   chat_jid: string;
   sender_jid: string;
+  sender_name?: string | null;
   from_me: number;
   timestamp: number;
   message_type: 'text' | 'audio' | 'image' | 'video' | 'document' | 'sticker' | 'other';
@@ -66,7 +67,21 @@ export function insertMessage(msg: Message): void {
 
 export function getMessage(id: string): MessageWithAttachments | undefined {
   const db = getDatabase();
-  const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as Message | undefined;
+  const query = `
+    SELECT 
+      m.*,
+      CASE
+        WHEN m.sender_jid = m.chat_jid THEN NULL
+        ELSE COALESCE(
+          (SELECT COALESCE(c.name, c.notify_name) FROM contacts c WHERE c.jid = m.sender_jid LIMIT 1),
+          (SELECT COALESCE(cl.name, cl.notify_name) FROM jid_links jl JOIN contacts cl ON cl.jid = jl.jid2 WHERE jl.jid1 = m.sender_jid AND (cl.name IS NOT NULL OR cl.notify_name IS NOT NULL) LIMIT 1),
+          NULL
+        )
+      END AS sender_name
+    FROM messages m
+    WHERE m.id = ?
+  `;
+  const msg = db.prepare(query).get(id) as Message | undefined;
   if (!msg) return undefined;
 
   return {
@@ -84,15 +99,28 @@ export function listChatMessages(
 
   const linked = getLinkedJids(chatJid);
   const placeholders = linked.map(() => '?').join(', ');
-  let query = `SELECT * FROM messages WHERE chat_jid IN (${placeholders})`;
+  let query = `
+    SELECT 
+      m.*,
+      CASE
+        WHEN m.sender_jid = m.chat_jid THEN NULL
+        ELSE COALESCE(
+          (SELECT COALESCE(c.name, c.notify_name) FROM contacts c WHERE c.jid = m.sender_jid LIMIT 1),
+          (SELECT COALESCE(cl.name, cl.notify_name) FROM jid_links jl JOIN contacts cl ON cl.jid = jl.jid2 WHERE jl.jid1 = m.sender_jid AND (cl.name IS NOT NULL OR cl.notify_name IS NOT NULL) LIMIT 1),
+          NULL
+        )
+      END AS sender_name
+    FROM messages m
+    WHERE m.chat_jid IN (${placeholders})
+  `;
   const params: (string | number)[] = [...linked];
 
   if (beforeTimestamp) {
-    query += ' AND timestamp < ?';
+    query += ' AND m.timestamp < ?';
     params.push(beforeTimestamp);
   }
 
-  query += ' ORDER BY timestamp DESC LIMIT ?';
+  query += ' ORDER BY m.timestamp DESC LIMIT ?';
   params.push(limit);
 
   const rows = db.prepare(query).all(...params) as Message[];
@@ -113,6 +141,7 @@ export interface SearchResultItem {
   transcription_text: string | null;
   timestamp: number;
   sender_jid: string;
+  sender_name?: string | null;
   from_me: number;
   message_type: string;
 }
@@ -140,6 +169,14 @@ export function searchMessages(
       f.transcription_text,
       m.timestamp,
       m.sender_jid,
+      CASE
+        WHEN m.sender_jid = m.chat_jid THEN NULL
+        ELSE COALESCE(
+          (SELECT COALESCE(c.name, c.notify_name) FROM contacts c WHERE c.jid = m.sender_jid LIMIT 1),
+          (SELECT COALESCE(cl.name, cl.notify_name) FROM jid_links jl JOIN contacts cl ON cl.jid = jl.jid2 WHERE jl.jid1 = m.sender_jid AND (cl.name IS NOT NULL OR cl.notify_name IS NOT NULL) LIMIT 1),
+          NULL
+        )
+      END AS sender_name,
       m.from_me,
       m.message_type
     FROM messages_fts f
@@ -170,6 +207,14 @@ export function searchMessages(
         a.transcription_text,
         m.timestamp,
         m.sender_jid,
+        CASE
+          WHEN m.sender_jid = m.chat_jid THEN NULL
+          ELSE COALESCE(
+            (SELECT COALESCE(c.name, c.notify_name) FROM contacts c WHERE c.jid = m.sender_jid LIMIT 1),
+            (SELECT COALESCE(cl.name, cl.notify_name) FROM jid_links jl JOIN contacts cl ON cl.jid = jl.jid2 WHERE jl.jid1 = m.sender_jid AND (cl.name IS NOT NULL OR cl.notify_name IS NOT NULL) LIMIT 1),
+            NULL
+          )
+        END AS sender_name,
         m.from_me,
         m.message_type
       FROM messages m

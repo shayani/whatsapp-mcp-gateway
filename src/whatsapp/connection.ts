@@ -6,6 +6,7 @@ import {
   makeCacheableSignalKeyStore,
   normalizeMessageContent,
   extractMessageContent,
+  jidNormalizedUser,
   type WAMessage,
   type WASocket,
   type ConnectionState
@@ -284,13 +285,60 @@ class WhatsAppService {
     }
   }
 
+  public async syncGroupMetadata(groupJid: string): Promise<void> {
+    if (!this.sock || !groupJid.endsWith('@g.us')) return;
+    try {
+      const metadata = await this.sock.groupMetadata(groupJid);
+      if (metadata?.participants) {
+        for (const p of metadata.participants) {
+          const participantJid = p.jid ? jidNormalizedUser(p.jid) : (p.id ? jidNormalizedUser(p.id) : null);
+          const lid = p.lid ? jidNormalizedUser(p.lid) : null;
+
+          if (participantJid) {
+            upsertContact({
+              jid: participantJid,
+              is_group: 0
+            });
+          }
+
+          if (lid) {
+            upsertContact({
+              jid: lid,
+              is_group: 0
+            });
+          }
+
+          if (participantJid && lid && participantJid !== lid) {
+            linkJids(participantJid, lid);
+            const phoneContact = getContact(participantJid);
+            if (phoneContact?.name) {
+              upsertContact({
+                jid: lid,
+                name: phoneContact.name,
+                notify_name: phoneContact.notify_name
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[WhatsApp] Não foi possível carregar metadados do grupo ${groupJid}:`, e);
+    }
+  }
+
   private async processIncomingMessage(msg: WAMessage, mediaCutoffTimestamp?: number): Promise<void> {
     const key = msg.key;
     if (!key || !key.remoteJid) return;
 
     const chatJid = key.remoteJid;
-    const senderJid = key.participant || chatJid;
+    const isGroup = chatJid.endsWith('@g.us');
     const fromMe = key.fromMe ? 1 : 0;
+
+    const rawSender = msg.participant || key.participant || (key as any).participantPn || (key as any).senderPn;
+    const senderJid = (isGroup && !fromMe && rawSender)
+      ? jidNormalizedUser(rawSender)
+      : (fromMe ? (this.sock?.user?.id ? jidNormalizedUser(this.sock.user.id) : chatJid) : chatJid);
+
     const timestamp = typeof msg.messageTimestamp === 'number'
       ? msg.messageTimestamp
       : (msg.messageTimestamp as any)?.low || Math.floor(Date.now() / 1000);
@@ -331,10 +379,9 @@ class WhatsAppService {
       return;
     }
 
-    // 3. Garante que o contato existe no banco
-    // IMPORTANTE: Só atualiza notify_name se a mensagem foi recebida do contato (!fromMe) e não for grupo
+    // 3. Garante que o contato/grupo existe no banco
+    // IMPORTANTE: Só atualiza notify_name do chat se a mensagem foi recebida do contato (!fromMe) e não for grupo
     // Se fromMe=true, msg.pushName é o nome do próprio usuário e não do contato remoto
-    const isGroup = chatJid.endsWith('@g.us');
     const remoteNotifyName = (!fromMe && !isGroup) ? (msg.pushName || null) : null;
 
     upsertContact({
@@ -343,6 +390,28 @@ class WhatsAppService {
       last_message_timestamp: timestamp,
       is_group: isGroup ? 1 : 0
     });
+
+    // Se for mensagem de grupo e não for enviada por mim, registra/atualiza o participante
+    if (isGroup && !fromMe && senderJid && senderJid !== chatJid) {
+      upsertContact({
+        jid: senderJid,
+        notify_name: msg.pushName || null,
+        is_group: 0
+      });
+
+      const participantPn = (key as any).participantPn || (key as any).senderPn;
+      if (participantPn && senderJid.endsWith('@lid')) {
+        linkJids(senderJid, participantPn);
+        const phoneContact = getContact(participantPn);
+        if (phoneContact?.name) {
+          upsertContact({
+            jid: senderJid,
+            name: phoneContact.name,
+            notify_name: phoneContact.notify_name
+          });
+        }
+      }
+    }
 
     const messageId = key.id || `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 

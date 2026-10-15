@@ -47,6 +47,34 @@ export const MessageView: React.FC<MessageViewProps> = ({
     });
   };
 
+  const formatSenderName = (senderName?: string | null, senderJid?: string, chatJid?: string): string | null => {
+    if (senderName && senderName.trim().length > 0) {
+      return senderName;
+    }
+    if (!senderJid || senderJid === chatJid) {
+      return null;
+    }
+    const raw = senderJid.split('@')[0];
+    // Se for formato antigo de criação de grupo (ex: 558396086969-1588007266), não é um remetente válido
+    if (raw.includes('-')) {
+      return null;
+    }
+    // Formatação de telefone brasileiro (ex: 558399826157 ou 5583988261570)
+    if (/^55\d{10,11}$/.test(raw)) {
+      const ddd = raw.substring(2, 4);
+      const rest = raw.substring(4);
+      if (rest.length === 9) {
+        return `+55 (${ddd}) ${rest.substring(0, 5)}-${rest.substring(5)}`;
+      }
+      return `+55 (${ddd}) ${rest.substring(0, 4)}-${rest.substring(4)}`;
+    }
+    // Outros telefones puramente numéricos
+    if (/^\d{8,15}$/.test(raw)) {
+      return `+${raw}`;
+    }
+    return raw;
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-950">
       {/* Cabeçalho da Conversa */}
@@ -103,6 +131,9 @@ export const MessageView: React.FC<MessageViewProps> = ({
         ) : (
           messages.map((msg) => {
             const isMe = Boolean(msg.from_me);
+            const senderDisplay = !isMe && Boolean(chat.is_group)
+              ? formatSenderName(msg.sender_name, msg.sender_jid, chat.jid)
+              : null;
             return (
               <div
                 key={msg.id}
@@ -116,9 +147,9 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   }`}
                 >
                   {/* Remetente em grupos */}
-                  {!isMe && Boolean(chat.is_group) && (
-                    <div className="text-xs font-semibold text-emerald-400 mb-1 font-mono">
-                      {msg.sender_jid.split('@')[0]}
+                  {senderDisplay && (
+                    <div className="text-xs font-semibold text-emerald-400 mb-1">
+                      {senderDisplay}
                     </div>
                   )}
 

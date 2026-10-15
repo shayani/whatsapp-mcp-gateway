@@ -15,7 +15,7 @@ import pino from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config, loadYamlConfig } from '../config.js';
-import { upsertContact } from '../db/contacts.js';
+import { upsertContact, getContact, linkJids } from '../db/contacts.js';
 import { insertMessage } from '../db/messages.js';
 import { messageFilter } from './filter.js';
 import { handleMediaDownload } from './media.js';
@@ -123,6 +123,7 @@ class WhatsAppService {
           });
           // Se tiver lid e jid associados, garante sincronização para ambos
           if (contact.lid && contact.lid !== contact.id) {
+            linkJids(contact.id, contact.lid);
             upsertContact({
               jid: contact.lid,
               name,
@@ -131,6 +132,7 @@ class WhatsAppService {
             });
           }
           if (contact.jid && contact.jid !== contact.id) {
+            linkJids(contact.id, contact.jid);
             upsertContact({
               jid: contact.jid,
               name,
@@ -151,6 +153,7 @@ class WhatsAppService {
               notify_name: update.notify || null
             });
             if (update.lid && update.lid !== update.id) {
+              linkJids(update.id, update.lid);
               upsertContact({
                 jid: update.lid,
                 name,
@@ -175,6 +178,7 @@ class WhatsAppService {
               is_group: c.id.endsWith('@g.us') ? 1 : 0
             });
             if (c.lid && c.lid !== c.id) {
+              linkJids(c.id, c.lid);
               upsertContact({
                 jid: c.lid,
                 name,
@@ -183,6 +187,7 @@ class WhatsAppService {
               });
             }
             if (c.jid && c.jid !== c.id) {
+              linkJids(c.id, c.jid);
               upsertContact({
                 jid: c.jid,
                 name,
@@ -239,10 +244,37 @@ class WhatsAppService {
         }
       });
 
+      // Associação explícita enviada pelo WhatsApp entre LID e JID telefônico
+      this.sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
+        if (lid && jid) {
+          linkJids(jid, lid);
+          const contact = getContact(jid);
+          if (contact?.name) {
+            upsertContact({
+              jid: lid,
+              name: contact.name,
+              notify_name: contact.notify_name
+            });
+          }
+        }
+      });
+
       // Novas mensagens em tempo real
       this.sock.ev.on('messages.upsert', async ({ messages: newMessages, type }) => {
         for (const msg of newMessages) {
           await this.processIncomingMessage(msg);
+        }
+      });
+
+      // Mensagens atualizadas (ex: descriptografadas após retry, editadas, etc.)
+      this.sock.ev.on('messages.update', async (updates) => {
+        for (const { key, update } of updates) {
+          if (update.message) {
+            await this.processIncomingMessage({
+              key,
+              ...update
+            } as WAMessage);
+          }
         }
       });
     } catch (err) {
@@ -268,8 +300,30 @@ class WhatsAppService {
       return;
     }
 
+    // Se a mensagem contiver o telefone associado no key (senderPn / participantPn), vincula ao chatJid
+    const phoneJid = (key as any).senderPn || (key as any).participantPn;
+    if (phoneJid && chatJid.endsWith('@lid')) {
+      linkJids(chatJid, phoneJid);
+      const phoneContact = getContact(phoneJid);
+      if (phoneContact?.name) {
+        upsertContact({
+          jid: chatJid,
+          name: phoneContact.name,
+          notify_name: phoneContact.notify_name
+        });
+      }
+    }
+
     const m = msg.message;
-    if (!m) return;
+    if (!m) {
+      // Se a mensagem chegou como ciphertext / falha de chave, solicita reenvio automático ao remetente
+      if ((msg as any).messageStubType === 2 && this.sock?.requestPlaceholderResend) {
+        this.sock.requestPlaceholderResend(key).catch((e) => {
+          console.error(`[WhatsApp] Falha ao solicitar reenvio para ${key.id}:`, e);
+        });
+      }
+      return;
+    }
 
     // 2. Extrai tipo, conteúdo e mídia
     const details = extractMessageDetails(m);

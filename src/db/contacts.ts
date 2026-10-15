@@ -68,6 +68,22 @@ export function toggleIgnoreContact(jid: string, isIgnored: boolean): void {
   }
 }
 
+export function linkJids(jid1: string, jid2: string): void {
+  if (!jid1 || !jid2 || jid1 === jid2) return;
+  const db = getDatabase();
+  const stmt = db.prepare('INSERT OR IGNORE INTO jid_links (jid1, jid2) VALUES (?, ?)');
+  db.transaction(() => {
+    stmt.run(jid1, jid2);
+    stmt.run(jid2, jid1);
+  })();
+}
+
+export function getLinkedJids(jid: string): string[] {
+  const db = getDatabase();
+  const rows = db.prepare('SELECT jid2 FROM jid_links WHERE jid1 = ?').all(jid) as { jid2: string }[];
+  return [jid, ...rows.map((r) => r.jid2)];
+}
+
 export function updateContactName(jid: string, name: string): void {
   const db = getDatabase();
   db.prepare('UPDATE contacts SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE jid = ?')
@@ -76,13 +92,28 @@ export function updateContactName(jid: string, name: string): void {
 
 export function listContacts(search?: string, limit = 50, offset = 0): Contact[] {
   const db = getDatabase();
+  // Filtro de desduplicação: se houver jid_links, só exibe o JID que tiver a mensagem mais recente
+  const deduplicateClause = `
+    NOT EXISTS (
+      SELECT 1 FROM jid_links jl
+      JOIN contacts c2 ON c2.jid = jl.jid2
+      WHERE jl.jid1 = contacts.jid AND (
+        c2.last_message_timestamp > contacts.last_message_timestamp
+        OR (c2.last_message_timestamp = contacts.last_message_timestamp AND contacts.jid LIKE '%@lid')
+      )
+    )
+  `;
+
   if (search && search.trim().length > 0) {
     const term = `%${search.trim()}%`;
     return db.prepare(`
       SELECT * FROM contacts
-      WHERE unaccent(COALESCE(name, '')) LIKE unaccent(?)
-         OR unaccent(COALESCE(notify_name, '')) LIKE unaccent(?)
-         OR jid LIKE ?
+      WHERE (${deduplicateClause})
+        AND (
+          unaccent(COALESCE(name, '')) LIKE unaccent(?)
+          OR unaccent(COALESCE(notify_name, '')) LIKE unaccent(?)
+          OR jid LIKE ?
+        )
       ORDER BY last_message_timestamp DESC, updated_at DESC
       LIMIT ? OFFSET ?
     `).all(term, term, term, limit, offset) as Contact[];
@@ -90,6 +121,7 @@ export function listContacts(search?: string, limit = 50, offset = 0): Contact[]
 
   return db.prepare(`
     SELECT * FROM contacts
+    WHERE ${deduplicateClause}
     ORDER BY last_message_timestamp DESC, updated_at DESC
     LIMIT ? OFFSET ?
   `).all(limit, offset) as Contact[];

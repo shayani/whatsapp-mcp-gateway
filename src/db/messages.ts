@@ -1,5 +1,6 @@
 import { getDatabase } from './index.js';
 import { getAttachmentsByMessageId, type Attachment } from './attachments.js';
+import { getLinkedJids } from './contacts.js';
 
 export interface Message {
   id: string;
@@ -81,8 +82,10 @@ export function listChatMessages(
 ): MessageWithAttachments[] {
   const db = getDatabase();
 
-  let query = 'SELECT * FROM messages WHERE chat_jid = ?';
-  const params: (string | number)[] = [chatJid];
+  const linked = getLinkedJids(chatJid);
+  const placeholders = linked.map(() => '?').join(', ');
+  let query = `SELECT * FROM messages WHERE chat_jid IN (${placeholders})`;
+  const params: (string | number)[] = [...linked];
 
   if (beforeTimestamp) {
     query += ' AND timestamp < ?';

@@ -50,6 +50,14 @@ function initSchema(db: Database.Database): void {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Links entre identificadores alternativos (ex: @lid <-> @s.whatsapp.net do mesmo contato)
+    CREATE TABLE IF NOT EXISTS jid_links (
+      jid1 TEXT NOT NULL,
+      jid2 TEXT NOT NULL,
+      PRIMARY KEY (jid1, jid2)
+    );
+    CREATE INDEX IF NOT EXISTS idx_jid_links_jid1 ON jid_links(jid1);
+
     -- Mensagens
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,

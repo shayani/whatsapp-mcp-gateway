@@ -2,22 +2,19 @@ import React, { useEffect, useRef } from 'react';
 import { Mic, FileText, Image as ImageIcon, Video, Ban, CheckCircle2, File } from 'lucide-react';
 import type { Contact, Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
-import type { VariantType } from './PrototypeSwitcher';
 
 interface MessageViewProps {
   chat: Contact | null;
   messages: Message[];
   isLoading: boolean;
   onToggleIgnore: (jid: string, newIgnoredState: boolean) => void;
-  variant?: VariantType;
 }
 
 export const MessageView: React.FC<MessageViewProps> = ({
   chat,
   messages,
   isLoading,
-  onToggleIgnore,
-  variant = 'A'
+  onToggleIgnore
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -99,67 +96,21 @@ export const MessageView: React.FC<MessageViewProps> = ({
 
         {/* Botão de Ligar/Desligar Coleta no Topo da Conversa */}
         <div className="flex items-center">
-          {variant === 'A' && (
-            <button
-              type="button"
-              onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
-              className={`inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
-                isIgnored
-                  ? 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
-                  : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isIgnored ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
-              <span>{isIgnored ? 'Coleta Pausada' : 'Coleta Ativa'}</span>
-              <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${isIgnored ? 'bg-gray-700 justify-start' : 'bg-emerald-500 justify-end'}`}>
-                <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
-              </span>
-            </button>
-          )}
-
-          {variant === 'B' && (
-            <button
-              type="button"
-              onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
-              className={`flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl text-xs font-medium border transition shadow-sm ${
-                isIgnored
-                  ? 'bg-rose-950/40 text-rose-300 border-rose-800/60 hover:bg-rose-900/40'
-                  : 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/50'
-              }`}
-            >
-              {isIgnored ? <Ban className="w-4 h-4 text-rose-400" /> : <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-              <div className="text-left">
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Coleta de Mensagens</div>
-                <div className="font-semibold">{isIgnored ? 'Pausada (Clique para Ativar)' : 'Ativa (Clique para Pausar)'}</div>
-              </div>
-            </button>
-          )}
-
-          {variant === 'C' && (
-            <div className="flex items-center gap-3 bg-gray-900/70 px-3.5 py-1.5 rounded-xl border border-gray-800">
-              <div className="text-right">
-                <span className="text-xs font-semibold text-gray-200 block">
-                  {isIgnored ? 'Coleta Desativada' : 'Coleta em Tempo Real'}
-                </span>
-                <span className="text-[10px] text-gray-500 block">
-                  {isIgnored ? 'Mensagens não estão sendo salvas' : 'Gravando mensagens e áudios'}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
-                className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  isIgnored ? 'bg-gray-700' : 'bg-emerald-500'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
-                    isIgnored ? 'translate-x-0' : 'translate-x-5'
-                  }`}
-                />
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
+            className={`inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
+              isIgnored
+                ? 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
+                : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isIgnored ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
+            <span>{isIgnored ? 'Coleta Pausada' : 'Coleta Ativa'}</span>
+            <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${isIgnored ? 'bg-gray-700 justify-start' : 'bg-emerald-500 justify-end'}`}>
+              <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
+            </span>
+          </button>
         </div>
       </header>
 

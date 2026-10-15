@@ -22,30 +22,12 @@ import {
   type Settings
 } from './api';
 import { ChatList } from './components/ChatList';
-import { ChatListVariantA } from './components/sidebar/ChatListVariantA';
-import { ChatListVariantB } from './components/sidebar/ChatListVariantB';
-import { ChatListVariantC } from './components/sidebar/ChatListVariantC';
-import { PrototypeSwitcher, type VariantType } from './components/PrototypeSwitcher';
 import { MessageView } from './components/MessageView';
 import { GlobalSearch } from './components/GlobalSearch';
 import { SettingsModal } from './components/SettingsModal';
 import { QrModal } from './components/QrModal';
 
 export const App: React.FC = () => {
-  // Propostas Visuais (A: Compact Minimalist | B: Badges & Filtros | C: Slim Lateral)
-  const [variant, setVariant] = useState<VariantType>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const v = params.get('variant')?.toUpperCase();
-    if (v === 'A' || v === 'B' || v === 'C') return v as VariantType;
-    return 'A';
-  });
-
-  const handleVariantChange = (newVariant: VariantType) => {
-    setVariant(newVariant);
-    const url = new URL(window.location.href);
-    url.searchParams.set('variant', newVariant);
-    window.history.replaceState({}, '', url.toString());
-  };
   const [chats, setChats] = useState<Contact[]>([]);
   const [selectedChat, setSelectedChat] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -239,32 +221,14 @@ export const App: React.FC = () => {
       </header>
 
       {/* Conteúdo Principal */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Barra Lateral Conforme Proposta Selecionada */}
-        {variant === 'A' && (
-          <ChatListVariantA
-            chats={chats}
-            selectedChatJid={selectedChat?.jid || null}
-            onSelectChat={handleSelectChat}
-            onSearchChange={(search) => loadChats(search)}
-          />
-        )}
-        {variant === 'B' && (
-          <ChatListVariantB
-            chats={chats}
-            selectedChatJid={selectedChat?.jid || null}
-            onSelectChat={handleSelectChat}
-            onSearchChange={(search) => loadChats(search)}
-          />
-        )}
-        {variant === 'C' && (
-          <ChatListVariantC
-            chats={chats}
-            selectedChatJid={selectedChat?.jid || null}
-            onSelectChat={handleSelectChat}
-            onSearchChange={(search) => loadChats(search)}
-          />
-        )}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Barra Lateral Otimizada com Lista de Conversas */}
+        <ChatList
+          chats={chats}
+          selectedChatJid={selectedChat?.jid || null}
+          onSelectChat={handleSelectChat}
+          onSearchChange={(search) => loadChats(search)}
+        />
 
         {/* Área Central: Busca Global OU Histórico da Conversa */}
         {isSearchActive ? (
@@ -281,16 +245,9 @@ export const App: React.FC = () => {
             messages={messages}
             isLoading={isLoadingMessages}
             onToggleIgnore={handleToggleIgnore}
-            variant={variant}
           />
         )}
       </div>
-
-      {/* Barra Flutuante de Seleção de Propostas Visuais */}
-      <PrototypeSwitcher
-        currentVariant={variant}
-        onVariantChange={handleVariantChange}
-      />
 
       {/* Modais */}
       <SettingsModal

@@ -4,6 +4,8 @@ import {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  normalizeMessageContent,
+  extractMessageContent,
   type WAMessage,
   type WASocket,
   type ConnectionState
@@ -112,23 +114,49 @@ class WhatsAppService {
       // Contatos sincronizados
       this.sock.ev.on('contacts.upsert', (contacts) => {
         for (const contact of contacts) {
+          const name = contact.name || (contact as any).verifiedName || contact.notify || null;
           upsertContact({
             jid: contact.id,
-            name: contact.name || null,
+            name,
             notify_name: contact.notify || null,
             is_group: contact.id.endsWith('@g.us') ? 1 : 0
           });
+          // Se tiver lid e jid associados, garante sincronização para ambos
+          if (contact.lid && contact.lid !== contact.id) {
+            upsertContact({
+              jid: contact.lid,
+              name,
+              notify_name: contact.notify || null,
+              is_group: 0
+            });
+          }
+          if (contact.jid && contact.jid !== contact.id) {
+            upsertContact({
+              jid: contact.jid,
+              name,
+              notify_name: contact.notify || null,
+              is_group: 0
+            });
+          }
         }
       });
 
       this.sock.ev.on('contacts.update', (updates) => {
         for (const update of updates) {
           if (update.id) {
+            const name = update.name || (update as any).verifiedName || update.notify || null;
             upsertContact({
               jid: update.id,
-              name: update.name || null,
+              name,
               notify_name: update.notify || null
             });
+            if (update.lid && update.lid !== update.id) {
+              upsertContact({
+                jid: update.lid,
+                name,
+                notify_name: update.notify || null
+              });
+            }
           }
         }
       });
@@ -139,12 +167,29 @@ class WhatsAppService {
 
         if (contacts) {
           for (const c of contacts) {
+            const name = c.name || (c as any).verifiedName || c.notify || null;
             upsertContact({
               jid: c.id,
-              name: c.name || null,
+              name,
               notify_name: c.notify || null,
               is_group: c.id.endsWith('@g.us') ? 1 : 0
             });
+            if (c.lid && c.lid !== c.id) {
+              upsertContact({
+                jid: c.lid,
+                name,
+                notify_name: c.notify || null,
+                is_group: 0
+              });
+            }
+            if (c.jid && c.jid !== c.id) {
+              upsertContact({
+                jid: c.jid,
+                name,
+                notify_name: c.notify || null,
+                is_group: 0
+              });
+            }
           }
         }
 
@@ -223,55 +268,27 @@ class WhatsAppService {
       return;
     }
 
-    // 2. Garante que o contato existe no banco
-    upsertContact({
-      jid: chatJid,
-      notify_name: msg.pushName || null,
-      last_message_timestamp: timestamp,
-      is_group: chatJid.endsWith('@g.us') ? 1 : 0
-    });
-
-    // 3. Extrai conteúdo textual e tipo da mensagem
     const m = msg.message;
     if (!m) return;
 
-    let messageType: 'text' | 'audio' | 'image' | 'video' | 'document' | 'sticker' | 'other' = 'text';
-    let content: string | null = null;
-    let mediaObject: any = null;
-    let mimetype = '';
-    let fileName: string | undefined = undefined;
-
-    if (m.conversation) {
-      messageType = 'text';
-      content = m.conversation;
-    } else if (m.extendedTextMessage?.text) {
-      messageType = 'text';
-      content = m.extendedTextMessage.text;
-    } else if (m.audioMessage) {
-      messageType = 'audio';
-      mediaObject = m.audioMessage;
-      mimetype = m.audioMessage.mimetype || 'audio/ogg; codecs=opus';
-    } else if (m.imageMessage) {
-      messageType = 'image';
-      content = m.imageMessage.caption || null;
-      mediaObject = m.imageMessage;
-      mimetype = m.imageMessage.mimetype || 'image/jpeg';
-    } else if (m.videoMessage) {
-      messageType = 'video';
-      content = m.videoMessage.caption || null;
-      mediaObject = m.videoMessage;
-      mimetype = m.videoMessage.mimetype || 'video/mp4';
-    } else if (m.documentMessage) {
-      messageType = 'document';
-      content = m.documentMessage.caption || m.documentMessage.title || null;
-      fileName = m.documentMessage.fileName || undefined;
-      mediaObject = m.documentMessage;
-      mimetype = m.documentMessage.mimetype || 'application/octet-stream';
-    } else if (m.stickerMessage) {
-      messageType = 'sticker';
-      mediaObject = m.stickerMessage;
-      mimetype = 'image/webp';
+    // 2. Extrai tipo, conteúdo e mídia
+    const details = extractMessageDetails(m);
+    if (details.isProtocol) {
+      return;
     }
+
+    // 3. Garante que o contato existe no banco
+    // IMPORTANTE: Só atualiza notify_name se a mensagem foi recebida do contato (!fromMe) e não for grupo
+    // Se fromMe=true, msg.pushName é o nome do próprio usuário e não do contato remoto
+    const isGroup = chatJid.endsWith('@g.us');
+    const remoteNotifyName = (!fromMe && !isGroup) ? (msg.pushName || null) : null;
+
+    upsertContact({
+      jid: chatJid,
+      notify_name: remoteNotifyName,
+      last_message_timestamp: timestamp,
+      is_group: isGroup ? 1 : 0
+    });
 
     const messageId = key.id || `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
@@ -282,21 +299,142 @@ class WhatsAppService {
       sender_jid: senderJid,
       from_me: fromMe,
       timestamp,
-      message_type: messageType,
-      content,
+      message_type: details.messageType,
+      content: details.content,
       raw_json: JSON.stringify(m)
     });
 
     // 4. Se houver mídia e respeitar a janela de tempo de retenção, agenda download
-    if (mediaObject) {
+    if (details.mediaObject) {
       const shouldDownloadMedia = mediaCutoffTimestamp ? timestamp >= mediaCutoffTimestamp : true;
       if (shouldDownloadMedia) {
-        handleMediaDownload(msg, messageId, chatJid, mimetype, fileName).catch((e) => {
+        handleMediaDownload(msg, messageId, chatJid, details.mimetype, details.fileName).catch((e) => {
           console.error(`Falha no download da mídia ${messageId}:`, e);
         });
       }
     }
   }
+}
+
+export function extractMessageDetails(m: any): {
+  messageType: 'text' | 'audio' | 'image' | 'video' | 'document' | 'sticker' | 'other';
+  content: string | null;
+  mediaObject: any;
+  mimetype: string;
+  fileName?: string;
+  isProtocol: boolean;
+} {
+  if (!m) {
+    return { messageType: 'other', content: null, mediaObject: null, mimetype: '', isProtocol: false };
+  }
+
+  // 1. Mensagens internas de protocolo (sincronização, revocação, etc.) não devem ser salvas como chat
+  if (m.protocolMessage) {
+    return { messageType: 'other', content: null, mediaObject: null, mimetype: '', isProtocol: true };
+  }
+
+  const normalized = normalizeMessageContent(m) || m;
+  const extracted = extractMessageContent(normalized) || normalized;
+
+  let messageType: 'text' | 'audio' | 'image' | 'video' | 'document' | 'sticker' | 'other' = 'text';
+  let content: string | null = null;
+  let mediaObject: any = null;
+  let mimetype = '';
+  let fileName: string | undefined = undefined;
+
+  if (extracted.conversation) {
+    messageType = 'text';
+    content = extracted.conversation;
+  } else if (extracted.extendedTextMessage?.text) {
+    messageType = 'text';
+    content = extracted.extendedTextMessage.text;
+  } else if (extracted.audioMessage) {
+    messageType = 'audio';
+    mediaObject = extracted.audioMessage;
+    mimetype = extracted.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+  } else if (extracted.imageMessage) {
+    messageType = 'image';
+    content = extracted.imageMessage.caption || null;
+    mediaObject = extracted.imageMessage;
+    mimetype = extracted.imageMessage.mimetype || 'image/jpeg';
+  } else if (extracted.videoMessage) {
+    messageType = 'video';
+    content = extracted.videoMessage.caption || null;
+    mediaObject = extracted.videoMessage;
+    mimetype = extracted.videoMessage.mimetype || 'video/mp4';
+  } else if (extracted.documentMessage) {
+    messageType = 'document';
+    content = extracted.documentMessage.caption || extracted.documentMessage.title || null;
+    fileName = extracted.documentMessage.fileName || undefined;
+    mediaObject = extracted.documentMessage;
+    mimetype = extracted.documentMessage.mimetype || 'application/octet-stream';
+  } else if (extracted.stickerMessage) {
+    messageType = 'sticker';
+    mediaObject = extracted.stickerMessage;
+    mimetype = 'image/webp';
+  }
+
+  // 2. Extração para templates de empresas, botões interativos, respostas de botões, listas e contatos
+  if (!content) {
+    const tm = m.templateMessage || normalized.templateMessage;
+    if (tm?.hydratedFourRowTemplate?.hydratedContentText) {
+      content = tm.hydratedFourRowTemplate.hydratedContentText;
+    } else if (tm?.hydratedTemplate?.hydratedContentText) {
+      content = tm.hydratedTemplate.hydratedContentText;
+    } else if (tm?.fourRowTemplate?.contentText) {
+      content = tm.fourRowTemplate.contentText;
+    } else if (tm?.interactiveMessageTemplate?.body?.text) {
+      content = tm.interactiveMessageTemplate.body.text;
+    }
+
+    const bm = m.buttonsMessage || normalized.buttonsMessage;
+    if (!content && bm?.contentText) {
+      content = bm.contentText;
+    }
+
+    const brm = m.buttonsResponseMessage || normalized.buttonsResponseMessage;
+    if (!content && brm?.selectedDisplayText) {
+      content = brm.selectedDisplayText;
+    }
+
+    const im = m.interactiveMessage || normalized.interactiveMessage;
+    if (!content && im?.body?.text) {
+      content = im.body.text;
+    }
+
+    const irm = m.interactiveResponseMessage || normalized.interactiveResponseMessage;
+    if (!content && irm?.body?.text) {
+      content = irm.body.text;
+    }
+
+    const lm = m.listMessage || normalized.listMessage;
+    if (!content && (lm?.description || lm?.title)) {
+      content = [lm.title, lm.description].filter(Boolean).join('\n');
+    }
+
+    const lrm = m.listResponseMessage || normalized.listResponseMessage;
+    if (!content && (lrm?.title || lrm?.singleSelectReply?.selectedRowId)) {
+      content = lrm.title || lrm.singleSelectReply?.selectedRowId || null;
+    }
+
+    if (!content && m.contactMessage?.displayName) {
+      content = `[Contato: ${m.contactMessage.displayName}]`;
+    }
+
+    if (!content && m.contactsArrayMessage?.displayName) {
+      content = `[Contatos: ${m.contactsArrayMessage.displayName}]`;
+    }
+
+    if (!content && (m.locationMessage?.name || m.locationMessage?.address)) {
+      content = `[Localização: ${[m.locationMessage.name, m.locationMessage.address].filter(Boolean).join(' - ')}]`;
+    }
+
+    if (!content && m.liveLocationMessage) {
+      content = `[Localização em tempo real: ${m.liveLocationMessage.caption || ''}]`.trim();
+    }
+  }
+
+  return { messageType, content, mediaObject, mimetype, fileName, isProtocol: false };
 }
 
 export const whatsappService = new WhatsAppService();

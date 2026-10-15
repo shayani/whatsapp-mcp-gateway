@@ -68,13 +68,21 @@ export function toggleIgnoreContact(jid: string, isIgnored: boolean): void {
   }
 }
 
+export function updateContactName(jid: string, name: string): void {
+  const db = getDatabase();
+  db.prepare('UPDATE contacts SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE jid = ?')
+    .run(name, jid);
+}
+
 export function listContacts(search?: string, limit = 50, offset = 0): Contact[] {
   const db = getDatabase();
   if (search && search.trim().length > 0) {
     const term = `%${search.trim()}%`;
     return db.prepare(`
       SELECT * FROM contacts
-      WHERE name LIKE ? OR notify_name LIKE ? OR jid LIKE ?
+      WHERE unaccent(COALESCE(name, '')) LIKE unaccent(?)
+         OR unaccent(COALESCE(notify_name, '')) LIKE unaccent(?)
+         OR jid LIKE ?
       ORDER BY last_message_timestamp DESC, updated_at DESC
       LIMIT ? OFFSET ?
     `).all(term, term, term, limit, offset) as Contact[];

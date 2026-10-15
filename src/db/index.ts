@@ -18,6 +18,11 @@ export function getDatabase(): Database.Database {
   dbInstance.pragma('busy_timeout = 5000');
   dbInstance.pragma('foreign_keys = ON');
 
+  // Função personalizada para busca insensível a acentuação
+  dbInstance.function('unaccent', (str) =>
+    typeof str === 'string' ? str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : ''
+  );
+
   initSchema(dbInstance);
 
   return dbInstance;

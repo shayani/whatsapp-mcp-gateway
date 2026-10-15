@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { listContacts, toggleIgnoreContact } from '../../db/contacts.js';
+import { listContacts, toggleIgnoreContact, updateContactName } from '../../db/contacts.js';
 import { listChatMessages, searchMessages } from '../../db/messages.js';
 import { setSetting, getEffectiveGroqApiKey } from '../../db/settings.js';
 import { messageFilter } from '../../whatsapp/filter.js';
@@ -60,6 +60,18 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
     messageFilter.setJidIgnoredInMemory(jid, is_ignored);
 
     return { success: true, jid, is_ignored };
+  });
+
+  // 2.1 Atualizar nome amigável do contato
+  fastify.post('/api/ui/chats/update-name', async (req) => {
+    const bodySchema = z.object({
+      jid: z.string(),
+      name: z.string().min(1)
+    });
+
+    const { jid, name } = bodySchema.parse(req.body);
+    updateContactName(jid, name.trim());
+    return { success: true, jid, name: name.trim() };
   });
 
   // 3. Listar mensagens de uma conversa específica

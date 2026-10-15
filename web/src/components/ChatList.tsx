@@ -113,11 +113,10 @@ export const ChatList: React.FC<ChatListProps> = ({
                       ) : null}
                       {chat.allow_send && !chat.is_group ? (
                         <span
-                          title="Envio pelo Hermes autorizado"
-                          className="text-[9px] text-amber-300 bg-amber-950/80 px-1 py-0.2 rounded flex-shrink-0 border border-amber-800/50 flex items-center gap-0.5"
+                          title="Envio por agentes autorizado"
+                          className="text-amber-400 flex-shrink-0 flex items-center ml-0.5"
                         >
-                          <Zap className="w-2.5 h-2.5 text-amber-400 fill-current" />
-                          Hermes
+                          <Zap className="w-3 h-3 fill-current" />
                         </span>
                       ) : null}
                     </span>

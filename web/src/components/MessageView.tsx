@@ -133,10 +133,10 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   ? 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
                   : 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
               }`}
-              title={chat.allow_send ? 'Envio pelo Hermes liberado para este contato' : 'Envio pelo Hermes bloqueado para este contato'}
+              title={chat.allow_send ? 'Envio por agentes liberado para este contato' : 'Envio por agentes bloqueado para este contato'}
             >
               <span className={`w-2 h-2 rounded-full ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
-              <span>{chat.allow_send ? 'Envio Hermes: Ativo' : 'Envio Hermes: Bloqueado'}</span>
+              <span>{chat.allow_send ? 'Envio por agentes: Ativo' : 'Envio por agentes: Bloqueado'}</span>
               <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${chat.allow_send ? 'bg-amber-500 justify-end' : 'bg-gray-700 justify-start'}`}>
                 <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
               </span>
@@ -202,11 +202,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
                       : 'bg-gray-900 border border-gray-800 text-gray-100'
                   }`}
                 >
-                  {/* Selo de envio pelo agente Hermes */}
+                  {/* Selo de envio por agentes */}
                   {isSentByHermes && (
                     <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950/80 text-amber-300 border border-amber-800/60 mb-1.5">
                       <Bot className="w-3 h-3 text-amber-400" />
-                      <span>Enviado via Hermes</span>
+                      <span>Enviado por agentes</span>
                     </div>
                   )}
 

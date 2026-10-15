@@ -116,7 +116,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   }`}
                 >
                   {/* Remetente em grupos */}
-                  {!isMe && chat.is_group && (
+                  {!isMe && Boolean(chat.is_group) && (
                     <div className="text-xs font-semibold text-emerald-400 mb-1 font-mono">
                       {msg.sender_jid.split('@')[0]}
                     </div>

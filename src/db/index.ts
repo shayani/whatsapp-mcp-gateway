@@ -44,6 +44,7 @@ function initSchema(db: Database.Database): void {
       notify_name TEXT,
       is_group BOOLEAN DEFAULT 0,
       is_ignored BOOLEAN DEFAULT 0,
+      allow_send BOOLEAN DEFAULT 0,
       unread_count INTEGER DEFAULT 0,
       last_message_timestamp INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -101,4 +102,12 @@ function initSchema(db: Database.Database): void {
       tokenize = 'unicode61'
     );
   `);
+
+  // Migrações incrementais
+  try {
+    db.exec('ALTER TABLE contacts ADD COLUMN allow_send BOOLEAN DEFAULT 0;');
+  } catch {
+    // Coluna já existe
+  }
 }
+

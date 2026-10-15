@@ -7,7 +7,8 @@ import {
   Maximize2,
   ExternalLink,
   Download,
-  X
+  X,
+  Bot
 } from 'lucide-react';
 import { getAttachmentUrl, type Contact, type Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
@@ -17,13 +18,15 @@ interface MessageViewProps {
   messages: Message[];
   isLoading: boolean;
   onToggleIgnore: (jid: string, newIgnoredState: boolean) => void;
+  onToggleAllowSend: (jid: string, newAllowSendState: boolean) => void;
 }
 
 export const MessageView: React.FC<MessageViewProps> = ({
   chat,
   messages,
   isLoading,
-  onToggleIgnore
+  onToggleIgnore,
+  onToggleAllowSend
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [selectedImage, setSelectedImage] = useState<{
@@ -118,12 +121,33 @@ export const MessageView: React.FC<MessageViewProps> = ({
           ) : null}
         </div>
 
-        {/* Botão de Ligar/Desligar Coleta no Topo da Conversa */}
-        <div className="flex items-center">
+        {/* Botões de Ação no Topo da Conversa: Envio pelo Agente e Coleta */}
+        <div className="flex items-center gap-2.5">
+          {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (apenas conversas privadas) */}
+          {!chat.is_group && (
+            <button
+              type="button"
+              onClick={() => onToggleAllowSend(chat.jid, !Boolean(chat.allow_send))}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
+                chat.allow_send
+                  ? 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
+                  : 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
+              }`}
+              title={chat.allow_send ? 'Envio pelo Hermes liberado para este contato' : 'Envio pelo Hermes bloqueado para este contato'}
+            >
+              <span className={`w-2 h-2 rounded-full ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span>{chat.allow_send ? 'Envio Hermes: Ativo' : 'Envio Hermes: Bloqueado'}</span>
+              <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${chat.allow_send ? 'bg-amber-500 justify-end' : 'bg-gray-700 justify-start'}`}>
+                <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
+              </span>
+            </button>
+          )}
+
+          {/* Botão de Ligar/Desligar Coleta */}
           <button
             type="button"
             onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
-            className={`inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
+            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
               isIgnored
                 ? 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
                 : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
@@ -151,6 +175,12 @@ export const MessageView: React.FC<MessageViewProps> = ({
         ) : (
           messages.map((msg) => {
             const isMe = Boolean(msg.from_me);
+            const isSentByHermes = Boolean(
+              isMe && (
+                (msg as any).source === 'mcp_hermes' ||
+                (msg.raw_json && msg.raw_json.includes('"source":"mcp_hermes"'))
+              )
+            );
             const senderDisplay = !isMe && Boolean(chat.is_group)
               ? formatSenderName(msg.sender_name, msg.sender_jid, chat.jid)
               : null;
@@ -172,6 +202,14 @@ export const MessageView: React.FC<MessageViewProps> = ({
                       : 'bg-gray-900 border border-gray-800 text-gray-100'
                   }`}
                 >
+                  {/* Selo de envio pelo agente Hermes */}
+                  {isSentByHermes && (
+                    <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950/80 text-amber-300 border border-amber-800/60 mb-1.5">
+                      <Bot className="w-3 h-3 text-amber-400" />
+                      <span>Enviado via Hermes</span>
+                    </div>
+                  )}
+
                   {/* Remetente em grupos */}
                   {senderDisplay && (
                     <div className="text-xs font-semibold text-emerald-400 mb-1.5">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, User, Search, Pause } from 'lucide-react';
+import { Users, User, Search, Pause, Zap } from 'lucide-react';
 import type { Contact } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
 
@@ -109,6 +109,15 @@ export const ChatList: React.FC<ChatListProps> = ({
                       {chat.is_group ? (
                         <span className="text-[9px] text-indigo-400 bg-indigo-950/70 px-1 rounded flex-shrink-0 border border-indigo-800/40">
                           Grupo
+                        </span>
+                      ) : null}
+                      {chat.allow_send && !chat.is_group ? (
+                        <span
+                          title="Envio pelo Hermes autorizado"
+                          className="text-[9px] text-amber-300 bg-amber-950/80 px-1 py-0.2 rounded flex-shrink-0 border border-amber-800/50 flex items-center gap-0.5"
+                        >
+                          <Zap className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                          Hermes
                         </span>
                       ) : null}
                     </span>

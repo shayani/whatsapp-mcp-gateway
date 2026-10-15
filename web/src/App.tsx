@@ -12,6 +12,7 @@ import {
   fetchChats,
   fetchMessages,
   toggleIgnoreContact,
+  toggleAllowSendContact,
   searchMessages,
   fetchAuthStatus,
   fetchSettings,
@@ -122,6 +123,23 @@ export const App: React.FC = () => {
       await toggleIgnoreContact(jid, newIgnoredState);
     } catch (err) {
       console.error('Erro ao atualizar ignore:', err);
+      loadChats();
+    }
+  };
+
+  const handleToggleAllowSend = async (jid: string, newAllowSendState: boolean) => {
+    // Atualização otimista na UI
+    setChats((prev) =>
+      prev.map((c) => (c.jid === jid ? { ...c, allow_send: newAllowSendState ? 1 : 0 } : c))
+    );
+    if (selectedChat?.jid === jid) {
+      setSelectedChat((prev) => (prev ? { ...prev, allow_send: newAllowSendState ? 1 : 0 } : null));
+    }
+
+    try {
+      await toggleAllowSendContact(jid, newAllowSendState);
+    } catch (err) {
+      console.error('Erro ao atualizar permissão de envio:', err);
       loadChats();
     }
   };
@@ -248,6 +266,7 @@ export const App: React.FC = () => {
             messages={messages}
             isLoading={isLoadingMessages}
             onToggleIgnore={handleToggleIgnore}
+            onToggleAllowSend={handleToggleAllowSend}
           />
         )}
       </div>

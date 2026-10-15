@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { listContacts, getContact } from '../db/contacts.js';
 import { listChatMessages, searchMessages, getMessage } from '../db/messages.js';
 import { getAttachment, getAttachmentsByMessageId } from '../db/attachments.js';
+import { whatsappService } from '../whatsapp/connection.js';
 
 export function registerMcpTools(server: McpServer): void {
   // Tool 1: list_chats
@@ -159,4 +160,62 @@ export function registerMcpTools(server: McpServer): void {
       return { content: [{ type: 'text', text: JSON.stringify(contact, null, 2) }] };
     }
   );
+
+  // Tool 6: send_message
+  server.tool(
+    'send_message',
+    'Envia uma mensagem de texto pelo WhatsApp para um contato previamente autorizado pelo usuário no painel.',
+    {
+      recipient: z
+        .string()
+        .describe(
+          'Número de telefone convencional (ex: "+5583998261570" ou "5583998261570") ou JID do contato ("...@s.whatsapp.net"). Grupos não são permitidos.'
+        ),
+      message: z
+        .string()
+        .min(1)
+        .describe('Texto da mensagem a ser enviada (suporta quebras de linha e emojis)')
+    },
+    async ({ recipient, message }) => {
+      try {
+        const result = await whatsappService.sendMessage(recipient, message, 'mcp_hermes');
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: true,
+                  message_id: result.messageId,
+                  recipient: result.targetJid,
+                  text: message,
+                  timestamp: new Date(result.timestamp * 1000).toISOString()
+                },
+                null,
+                2
+              )
+            }
+          ]
+        };
+      } catch (err: any) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(
+                {
+                  success: false,
+                  error: err.message || 'Falha ao enviar mensagem.'
+                },
+                null,
+                2
+              )
+            }
+          ],
+          isError: true
+        };
+      }
+    }
+  );
 }
+

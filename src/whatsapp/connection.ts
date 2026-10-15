@@ -16,7 +16,7 @@ import pino from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import { config, loadYamlConfig } from '../config.js';
-import { upsertContact, getContact, linkJids } from '../db/contacts.js';
+import { upsertContact, getContact, linkJids, isSendAllowedForContact } from '../db/contacts.js';
 import { insertMessage } from '../db/messages.js';
 import { messageFilter } from './filter.js';
 import { handleMediaDownload } from './media.js';
@@ -436,6 +436,106 @@ class WhatsAppService {
         });
       }
     }
+  }
+
+  private recentSends = new Map<string, number[]>();
+
+  public async sendMessage(
+    recipient: string,
+    text: string,
+    source = 'mcp_hermes'
+  ): Promise<{ success: boolean; messageId: string; targetJid: string; timestamp: number }> {
+    if (!this.sock || this.state.status !== 'connected') {
+      throw new Error('WhatsApp não está conectado no momento. Não é possível enviar a mensagem.');
+    }
+
+    if (!text || text.trim().length === 0) {
+      throw new Error('O texto da mensagem não pode ser vazio.');
+    }
+
+    // 1. Normalização do destinatário
+    let targetJid = recipient.trim();
+
+    // Se for grupo, bloqueia sumariamente conforme decisão Q1
+    if (targetJid.endsWith('@g.us')) {
+      throw new Error('Envio para grupos (@g.us) está estritamente bloqueado por política de segurança.');
+    }
+
+    // Se for apenas número com ou sem '+', formata para @s.whatsapp.net
+    if (!targetJid.includes('@')) {
+      const cleanNumber = targetJid.replace(/\D/g, '');
+      if (cleanNumber.length < 8) {
+        throw new Error(`Número de telefone inválido: ${recipient}`);
+      }
+      targetJid = `${cleanNumber}@s.whatsapp.net`;
+    }
+
+    // 2. Verifica se o contato tem autorização de envio habilitada pelo usuário
+    const allowed = isSendAllowedForContact(targetJid);
+    if (!allowed) {
+      throw new Error(
+        `Envio bloqueado: O contato ${targetJid} não possui autorização de envio habilitada pelo usuário no painel.`
+      );
+    }
+
+    // 3. Circuit Breaker / Rate Limiting (máx 5 msgs a cada 10 min, mínimo 3s entre envios)
+    const now = Date.now();
+    const tenMinutesAgo = now - 10 * 60 * 1000;
+    const history = (this.recentSends.get(targetJid) || []).filter((t) => t > tenMinutesAgo);
+
+    if (history.length > 0) {
+      const lastSend = history[history.length - 1];
+      if (now - lastSend < 3000) {
+        throw new Error(
+          `Cooldown ativo: Aguarde pelo menos 3 segundos entre mensagens para ${targetJid}.`
+        );
+      }
+    }
+
+    if (history.length >= 5) {
+      throw new Error(
+        `Circuit Breaker: Limite de envio excedido para ${targetJid} (máximo de 5 mensagens a cada 10 minutos).`
+      );
+    }
+
+    // 4. Envia a mensagem via Baileys
+    const sent = await this.sock.sendMessage(targetJid, { text });
+    const messageId = sent?.key?.id || `msg_out_${now}_${Math.random().toString(36).substring(7)}`;
+    const timestamp = Math.floor(now / 1000);
+
+    // Registra o timestamp para rate limiting
+    history.push(now);
+    this.recentSends.set(targetJid, history);
+
+    // 5. Registra no banco SQLite com auditoria de origem (source: 'mcp_hermes')
+    const myJid = this.sock.user?.id ? jidNormalizedUser(this.sock.user.id) : targetJid;
+    insertMessage({
+      id: messageId,
+      chat_jid: targetJid,
+      sender_jid: myJid,
+      from_me: 1,
+      timestamp,
+      message_type: 'text',
+      content: text,
+      raw_json: JSON.stringify({
+        source,
+        key: sent?.key,
+        message: { conversation: text }
+      })
+    });
+
+    upsertContact({
+      jid: targetJid,
+      last_message_timestamp: timestamp,
+      is_group: 0
+    });
+
+    return {
+      success: true,
+      messageId,
+      targetJid,
+      timestamp
+    };
   }
 }
 

@@ -6,6 +6,7 @@ export interface Contact {
   notify_name: string | null;
   is_group: number;
   is_ignored: number;
+  allow_send?: number;
   unread_count: number;
   last_message_timestamp: number;
   created_at?: string;
@@ -23,6 +24,7 @@ export function upsertContact(contact: Partial<Contact> & { jid: string }): void
       UPDATE contacts SET
         name = COALESCE(?, name),
         notify_name = COALESCE(?, notify_name),
+        allow_send = COALESCE(?, allow_send),
         unread_count = COALESCE(?, unread_count),
         last_message_timestamp = MAX(last_message_timestamp, ?),
         updated_at = CURRENT_TIMESTAMP
@@ -30,6 +32,7 @@ export function upsertContact(contact: Partial<Contact> & { jid: string }): void
     `).run(
       contact.name ?? null,
       contact.notify_name ?? null,
+      contact.allow_send ?? null,
       contact.unread_count ?? null,
       contact.last_message_timestamp ?? existing.last_message_timestamp,
       contact.jid
@@ -37,14 +40,15 @@ export function upsertContact(contact: Partial<Contact> & { jid: string }): void
   } else {
     db.prepare(`
       INSERT INTO contacts (
-        jid, name, notify_name, is_group, is_ignored, unread_count, last_message_timestamp
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        jid, name, notify_name, is_group, is_ignored, allow_send, unread_count, last_message_timestamp
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       contact.jid,
       contact.name ?? null,
       contact.notify_name ?? null,
       isGroup,
       contact.is_ignored ?? 0,
+      contact.allow_send ?? 0,
       contact.unread_count ?? 0,
       contact.last_message_timestamp ?? 0
     );
@@ -66,6 +70,28 @@ export function toggleIgnoreContact(jid: string, isIgnored: boolean): void {
     db.prepare('UPDATE contacts SET is_ignored = ?, updated_at = CURRENT_TIMESTAMP WHERE jid = ?')
       .run(isIgnored ? 1 : 0, jid);
   }
+}
+
+export function toggleAllowSendContact(jid: string, allowSend: boolean): void {
+  const db = getDatabase();
+  const existing = getContact(jid);
+  if (!existing) {
+    upsertContact({ jid, allow_send: allowSend ? 1 : 0 });
+  } else {
+    db.prepare('UPDATE contacts SET allow_send = ?, updated_at = CURRENT_TIMESTAMP WHERE jid = ?')
+      .run(allowSend ? 1 : 0, jid);
+  }
+}
+
+export function isSendAllowedForContact(jid: string): boolean {
+  const db = getDatabase();
+  // Busca o contato e também qualquer JID vinculado (ex: LID <-> telefone)
+  const linked = getLinkedJids(jid);
+  const placeholders = linked.map(() => '?').join(', ');
+  const row = db.prepare(`SELECT MAX(allow_send) as allowed FROM contacts WHERE jid IN (${placeholders})`).get(...linked) as
+    | { allowed: number | null }
+    | undefined;
+  return Boolean(row?.allowed);
 }
 
 export function linkJids(jid1: string, jid2: string): void {

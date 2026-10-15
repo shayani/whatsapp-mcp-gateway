@@ -4,6 +4,7 @@ export interface Contact {
   notify_name: string | null;
   is_group: number;
   is_ignored: number;
+  allow_send?: number;
   unread_count: number;
   last_message_timestamp: number;
 }
@@ -28,6 +29,8 @@ export interface Message {
   timestamp: number;
   message_type: string;
   content: string | null;
+  raw_json?: string | null;
+  source?: string | null;
   attachments: Attachment[];
 }
 
@@ -74,6 +77,16 @@ export async function toggleIgnoreContact(jid: string, isIgnored: boolean): Prom
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jid, is_ignored: isIgnored })
+  });
+  const data = await res.json();
+  return data.success;
+}
+
+export async function toggleAllowSendContact(jid: string, allowSend: boolean): Promise<boolean> {
+  const res = await fetch('/api/ui/chats/toggle-send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jid, allow_send: allowSend })
   });
   const data = await res.json();
   return data.success;

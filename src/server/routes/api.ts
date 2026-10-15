@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { listContacts, toggleIgnoreContact, updateContactName } from '../../db/contacts.js';
+import { listContacts, toggleIgnoreContact, updateContactName, toggleAllowSendContact } from '../../db/contacts.js';
 import { listChatMessages, searchMessages } from '../../db/messages.js';
 import { getAttachment } from '../../db/attachments.js';
 import { setSetting, getEffectiveGroqApiKey } from '../../db/settings.js';
@@ -97,6 +97,23 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
     const { jid, name } = bodySchema.parse(req.body);
     updateContactName(jid, name.trim());
     return { success: true, jid, name: name.trim() };
+  });
+
+  // 2.2 Alternar status de envio pelo agente Hermes (allow_send)
+  fastify.post('/api/ui/chats/toggle-send', async (req, reply) => {
+    const bodySchema = z.object({
+      jid: z.string(),
+      allow_send: z.boolean()
+    });
+
+    const { jid, allow_send } = bodySchema.parse(req.body);
+
+    if (jid.endsWith('@g.us') && allow_send) {
+      return reply.code(400).send({ success: false, error: 'Envio para grupos não é permitido.' });
+    }
+
+    toggleAllowSendContact(jid, allow_send);
+    return { success: true, jid, allow_send };
   });
 
   // 3. Listar mensagens de uma conversa específica

@@ -106,3 +106,8 @@ export async function saveGroqKey(groqApiKey: string): Promise<boolean> {
   const data = await res.json();
   return data.success;
 }
+
+export function getAttachmentUrl(attachmentId: string): string {
+  return `/api/ui/attachments/${encodeURIComponent(attachmentId)}`;
+}
+

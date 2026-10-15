@@ -75,6 +75,19 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  // Carrega mensagens do chat selecionado
+  const loadChatMessages = useCallback(async (chatJid: string, isSilent = false) => {
+    if (!isSilent) setIsLoadingMessages(true);
+    try {
+      const data = await fetchMessages(chatJid);
+      setMessages(data);
+    } catch (err) {
+      console.error('Erro ao carregar mensagens:', err);
+    } finally {
+      if (!isSilent) setIsLoadingMessages(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadChats();
     loadMeta();
@@ -82,23 +95,13 @@ export const App: React.FC = () => {
     const interval = setInterval(() => {
       loadChats();
       loadMeta();
-    }, 5000);
+      if (selectedChat?.jid) {
+        loadChatMessages(selectedChat.jid, true);
+      }
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [loadChats, loadMeta]);
-
-  // Carrega mensagens do chat selecionado
-  const loadChatMessages = useCallback(async (chatJid: string) => {
-    setIsLoadingMessages(true);
-    try {
-      const data = await fetchMessages(chatJid);
-      setMessages(data);
-    } catch (err) {
-      console.error('Erro ao carregar mensagens:', err);
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  }, []);
+  }, [loadChats, loadMeta, loadChatMessages, selectedChat?.jid]);
 
   const handleSelectChat = (chat: Contact) => {
     setSelectedChat(chat);

@@ -1,20 +1,44 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { listContacts, toggleIgnoreContact, updateContactName } from '../../db/contacts.js';
 import { listChatMessages, searchMessages } from '../../db/messages.js';
+import { getAttachment } from '../../db/attachments.js';
 import { setSetting, getEffectiveGroqApiKey } from '../../db/settings.js';
 import { messageFilter } from '../../whatsapp/filter.js';
 import { transcriptionQueue } from '../../transcription/queue.js';
 import { config } from '../../config.js';
 import { whatsappService } from '../../whatsapp/connection.js';
 
+function resolveAttachmentPath(filePath: string): string | null {
+  if (fs.existsSync(filePath)) {
+    return filePath;
+  }
+  const parts = filePath.split(path.sep);
+  const mediaIdx = parts.lastIndexOf('media');
+  if (mediaIdx !== -1 && mediaIdx < parts.length - 1) {
+    const rel = parts.slice(mediaIdx + 1).join(path.sep);
+    const candidate = path.join(config.mediaDir, rel);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 export const apiRoutes: FastifyPluginAsync = async (fastify) => {
   // Middleware de proteção básica se DASHBOARD_PASSWORD estiver configurado
   fastify.addHook('preHandler', async (req, reply) => {
     if (!config.dashboardPassword) return;
 
-    // Ignora rotas de auth e sse
-    if (req.url.startsWith('/api/auth') || req.url.startsWith('/sse') || req.url.startsWith('/messages')) {
+    // Ignora rotas de auth, sse e anexos públicos (para <img>, <audio>, etc.)
+    if (
+      req.url.startsWith('/api/auth') ||
+      req.url.startsWith('/sse') ||
+      req.url.startsWith('/messages') ||
+      req.url.startsWith('/api/ui/attachments')
+    ) {
       return;
     }
 
@@ -134,4 +158,47 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
 
     return { success: true };
   });
+
+  // 6. Servir anexo / mídia (imagens, áudio, vídeos, documentos)
+  fastify.get('/api/ui/attachments/:id', async (req, reply) => {
+    const paramsSchema = z.object({ id: z.string() });
+    const { id } = paramsSchema.parse(req.params);
+
+    const att = getAttachment(id);
+    if (!att) {
+      return reply.code(404).send({ error: 'Anexo não encontrado' });
+    }
+
+    const resolvedPath = resolveAttachmentPath(att.file_path);
+    if (!resolvedPath || !fs.existsSync(resolvedPath)) {
+      return reply.code(404).send({ error: 'Arquivo do anexo não encontrado no disco' });
+    }
+
+    const stat = fs.statSync(resolvedPath);
+    const mime = att.mimetype || 'application/octet-stream';
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+      const chunksize = end - start + 1;
+
+      reply.code(206);
+      reply.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+      reply.header('Accept-Ranges', 'bytes');
+      reply.header('Content-Length', chunksize);
+      reply.header('Content-Type', mime);
+      return reply.send(fs.createReadStream(resolvedPath, { start, end }));
+    }
+
+    reply.header('Accept-Ranges', 'bytes');
+    reply.header('Content-Type', mime);
+    reply.header('Content-Length', stat.size);
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+    reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(att.file_name || att.id)}"`);
+
+    return reply.send(fs.createReadStream(resolvedPath));
+  });
 };
+

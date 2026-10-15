@@ -1,6 +1,15 @@
-import React, { useEffect, useRef } from 'react';
-import { Mic, FileText, Image as ImageIcon, Video, Ban, CheckCircle2, File } from 'lucide-react';
-import type { Contact, Message } from '../api';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Mic,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Maximize2,
+  ExternalLink,
+  Download,
+  X
+} from 'lucide-react';
+import { getAttachmentUrl, type Contact, type Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
 
 interface MessageViewProps {
@@ -17,10 +26,28 @@ export const MessageView: React.FC<MessageViewProps> = ({
   onToggleIgnore
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    fileName: string;
+    fileSize?: number | null;
+    caption?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelectedImage(null);
+      }
+    };
+    if (selectedImage) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedImage]);
 
   if (!chat) {
     return (
@@ -56,11 +83,9 @@ export const MessageView: React.FC<MessageViewProps> = ({
       return null;
     }
     const raw = senderJid.split('@')[0];
-    // Se for formato antigo de criação de grupo (ex: 558396086969-1588007266), não é um remetente válido
     if (raw.includes('-')) {
       return null;
     }
-    // Formatação de telefone brasileiro (ex: 558399826157 ou 5583988261570)
     if (/^55\d{10,11}$/.test(raw)) {
       const ddd = raw.substring(2, 4);
       const rest = raw.substring(4);
@@ -69,7 +94,6 @@ export const MessageView: React.FC<MessageViewProps> = ({
       }
       return `+55 (${ddd}) ${rest.substring(0, 4)}-${rest.substring(4)}`;
     }
-    // Outros telefones puramente numéricos
     if (/^\d{8,15}$/.test(raw)) {
       return `+${raw}`;
     }
@@ -77,7 +101,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-950">
+    <div className="flex-1 flex flex-col h-full bg-gray-950 relative">
       {/* Cabeçalho da Conversa */}
       <header className="px-6 py-3.5 border-b border-gray-800 bg-gray-900/60 flex items-center justify-between">
         <div>
@@ -130,6 +154,12 @@ export const MessageView: React.FC<MessageViewProps> = ({
             const senderDisplay = !isMe && Boolean(chat.is_group)
               ? formatSenderName(msg.sender_name, msg.sender_jid, chat.jid)
               : null;
+
+            const imageAttachments = msg.attachments?.filter((att) => att.mimetype.startsWith('image/')) || [];
+            const nonImageAttachments = msg.attachments?.filter((att) => !att.mimetype.startsWith('image/')) || [];
+            const hasImages = imageAttachments.length > 0;
+            const isImageMsgWithoutAtt = msg.message_type === 'image' && !hasImages;
+
             return (
               <div
                 key={msg.id}
@@ -144,33 +174,94 @@ export const MessageView: React.FC<MessageViewProps> = ({
                 >
                   {/* Remetente em grupos */}
                   {senderDisplay && (
-                    <div className="text-xs font-semibold text-emerald-400 mb-1">
+                    <div className="text-xs font-semibold text-emerald-400 mb-1.5">
                       {senderDisplay}
                     </div>
                   )}
 
-                  {/* Texto principal da mensagem */}
+                  {/* Anexos de Imagens / Thumbnails */}
+                  {hasImages && (
+                    <div className="space-y-2 mb-2">
+                      {imageAttachments.map((att) => {
+                        const isSticker = msg.message_type === 'sticker' || (att.mimetype === 'image/webp' && msg.message_type === 'sticker');
+
+                        if (isSticker) {
+                          return (
+                            <div key={att.id} className="py-1">
+                              <img
+                                src={getAttachmentUrl(att.id)}
+                                alt={att.file_name || 'Figurinha'}
+                                loading="lazy"
+                                className="w-28 h-28 object-contain cursor-pointer hover:scale-105 transition-transform drop-shadow"
+                                onClick={() => setSelectedImage({
+                                  url: getAttachmentUrl(att.id),
+                                  fileName: att.file_name || 'Figurinha',
+                                  fileSize: att.file_size,
+                                  caption: null
+                                })}
+                              />
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={att.id}
+                            className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 max-w-sm cursor-pointer shadow-sm"
+                            onClick={() => setSelectedImage({
+                              url: getAttachmentUrl(att.id),
+                              fileName: att.file_name || 'Imagem',
+                              fileSize: att.file_size,
+                              caption: msg.content
+                            })}
+                          >
+                            <img
+                              src={getAttachmentUrl(att.id)}
+                              alt={att.file_name || 'Imagem'}
+                              loading="lazy"
+                              className="max-h-72 w-full object-contain rounded-xl transition duration-200 group-hover:brightness-105"
+                            />
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2 pointer-events-none">
+                              <span className="flex items-center gap-1.5 text-[11px] font-medium bg-gray-900/85 text-gray-200 px-2 py-1 rounded-md backdrop-blur-sm border border-gray-700/50 shadow">
+                                <Maximize2 className="w-3 h-3 text-emerald-400" />
+                                Ampliar
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Fallback se a imagem ainda estiver sendo baixada */}
+                  {isImageMsgWithoutAtt && (
+                    <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800/80 mb-2">
+                      <ImageIcon className="w-4 h-4 text-gray-500 animate-pulse" />
+                      <span>Carregando imagem...</span>
+                    </div>
+                  )}
+
+                  {/* Texto principal da mensagem / Legenda */}
                   {msg.content && (
                     <p className="text-sm leading-relaxed whitespace-pre-wrap select-text mb-2">
                       {msg.content}
                     </p>
                   )}
 
-                  {/* Anexos e Transcrições de Áudio */}
-                  {msg.attachments && msg.attachments.length > 0 && (
+                  {/* Outros Anexos (Áudio, Vídeo, Documentos) */}
+                  {nonImageAttachments.length > 0 && (
                     <div className="space-y-2 mt-2 pt-2 border-t border-gray-800/60">
-                      {msg.attachments.map((att) => {
+                      {nonImageAttachments.map((att) => {
                         const isAudio = att.mimetype.startsWith('audio/') || att.mimetype.includes('ogg');
-                        const isImage = att.mimetype.startsWith('image/');
                         const isVideo = att.mimetype.startsWith('video/');
 
                         if (isAudio) {
                           return (
                             <div
                               key={att.id}
-                              className="bg-gray-950/80 rounded-xl p-3 border border-indigo-500/30"
+                              className="bg-gray-950/80 rounded-xl p-3 border border-indigo-500/30 space-y-2"
                             >
-                              <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400 mb-2">
+                              <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400">
                                 <Mic className="w-4 h-4" />
                                 Mensagem de Voz / Áudio
                                 {att.transcription_status === 'completed' && (
@@ -201,23 +292,50 @@ export const MessageView: React.FC<MessageViewProps> = ({
                                     : 'Sem transcrição disponível.'}
                                 </p>
                               )}
+
+                              <audio
+                                controls
+                                preload="none"
+                                src={getAttachmentUrl(att.id)}
+                                className="w-full h-8 mt-1 rounded opacity-90 hover:opacity-100"
+                              />
+                            </div>
+                          );
+                        }
+
+                        if (isVideo) {
+                          return (
+                            <div key={att.id} className="overflow-hidden rounded-xl border border-gray-800 bg-black/60 max-w-sm my-1.5">
+                              <video
+                                controls
+                                preload="metadata"
+                                src={getAttachmentUrl(att.id)}
+                                className="max-h-72 w-full rounded-xl"
+                              />
+                              {att.file_name && (
+                                <div className="p-2 text-[11px] text-gray-400 truncate">
+                                  {att.file_name}
+                                </div>
+                              )}
                             </div>
                           );
                         }
 
                         return (
-                          <div
+                          <a
                             key={att.id}
-                            className="flex items-center gap-3 bg-gray-950/50 p-2.5 rounded-lg border border-gray-800 text-xs text-gray-300"
+                            href={getAttachmentUrl(att.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 bg-gray-950/50 hover:bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 text-xs text-gray-300 transition group"
                           >
-                            {isImage && <ImageIcon className="w-4 h-4 text-sky-400" />}
-                            {isVideo && <Video className="w-4 h-4 text-purple-400" />}
-                            {!isImage && !isVideo && <FileText className="w-4 h-4 text-amber-400" />}
+                            <FileText className="w-4 h-4 text-amber-400 group-hover:text-amber-300" />
                             <span className="truncate font-medium">{att.file_name || 'Anexo'}</span>
-                            <span className="text-[11px] text-gray-500 ml-auto">
+                            <span className="text-[11px] text-gray-500 ml-auto group-hover:text-gray-300 flex items-center gap-1">
                               {att.file_size ? `${Math.round(att.file_size / 1024)} KB` : ''}
+                              <Download className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </span>
-                          </div>
+                          </a>
                         );
                       })}
                     </div>
@@ -236,6 +354,84 @@ export const MessageView: React.FC<MessageViewProps> = ({
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Modal / Lightbox de Imagem */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          {/* Barra Superior */}
+          <div
+            className="flex items-center justify-between px-4 py-2 bg-gray-900/80 rounded-xl border border-gray-800 backdrop-blur-sm text-gray-200 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <ImageIcon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <div className="truncate">
+                <p className="text-xs font-semibold text-gray-100 truncate">
+                  {selectedImage.fileName}
+                </p>
+                {selectedImage.fileSize ? (
+                  <p className="text-[10px] text-gray-400">
+                    {Math.round(selectedImage.fileSize / 1024)} KB
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={selectedImage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir imagem original em nova aba"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <a
+                href={selectedImage.url}
+                download={selectedImage.fileName}
+                title="Baixar imagem"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
+              >
+                <Download className="w-4 h-4" />
+              </a>
+              <button
+                onClick={() => setSelectedImage(null)}
+                title="Fechar (Esc)"
+                className="p-2 rounded-lg bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 transition ml-2"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Imagem Central */}
+          <div className="flex-1 flex items-center justify-center p-2 min-h-0 overflow-hidden">
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.fileName}
+              className="max-h-[82vh] max-w-[92vw] object-contain rounded-lg shadow-2xl select-none"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
+          {/* Legenda inferior se houver */}
+          {selectedImage.caption ? (
+            <div
+              className="mx-auto max-w-xl text-center px-4 py-2 bg-gray-900/90 rounded-xl border border-gray-800 text-xs text-gray-200 backdrop-blur-sm shadow"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {selectedImage.caption}
+            </div>
+          ) : (
+            <div />
+          )}
+        </div>
+      )}
     </div>
   );
 };
+

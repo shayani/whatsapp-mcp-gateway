@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Mic,
   FileText,
@@ -28,7 +28,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
   onToggleIgnore,
   onToggleAllowSend
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const activeChatJidRef = useRef<string | null>(null);
+  const isFirstLoadForChatRef = useRef<boolean>(true);
+
   const [selectedImage, setSelectedImage] = useState<{
     url: string;
     fileName: string;
@@ -36,9 +40,31 @@ export const MessageView: React.FC<MessageViewProps> = ({
     caption?: string | null;
   } | null>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Quando o contato selecionado mudar, marca para ir direto ao fim instantaneamente
+  if (activeChatJidRef.current !== chat?.jid) {
+    activeChatJidRef.current = chat?.jid || null;
+    isFirstLoadForChatRef.current = true;
+  }
+
+  // Rola instantaneamente para as últimas mensagens antes do paint do navegador (sem animação incômoda)
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (isFirstLoadForChatRef.current) {
+      container.scrollTop = container.scrollHeight;
+      if (messages.length > 0) {
+        isFirstLoadForChatRef.current = false;
+      }
+      return;
+    }
+
+    // Se for atualização periódica no mesmo chat, só rola se o usuário já estiver no final
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+    if (isNearBottom) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [messages, chat?.jid]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -163,7 +189,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
       </header>
 
       {/* Lista de Mensagens */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading ? (
           <div className="flex justify-center items-center h-32 text-gray-500 text-sm">
             Carregando mensagens...

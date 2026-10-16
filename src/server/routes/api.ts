@@ -11,21 +11,13 @@ import { transcriptionQueue } from '../../transcription/queue.js';
 import { config } from '../../config.js';
 import { whatsappService } from '../../whatsapp/connection.js';
 
-function resolveAttachmentPath(filePath: string): string | null {
-  if (fs.existsSync(filePath)) {
-    return filePath;
-  }
-  const parts = filePath.split(path.sep);
-  const mediaIdx = parts.lastIndexOf('media');
-  if (mediaIdx !== -1 && mediaIdx < parts.length - 1) {
-    const rel = parts.slice(mediaIdx + 1).join(path.sep);
-    const candidate = path.join(config.mediaDir, rel);
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
+import {
+  getStorageSummary,
+  getStorageByChat,
+  getChatStorageDetails,
+  cleanStorage,
+  resolveAttachmentPath
+} from '../../db/storage.js';
 
 export const apiRoutes: FastifyPluginAsync = async (fastify) => {
   // Middleware de proteção básica se DASHBOARD_PASSWORD estiver configurado
@@ -216,6 +208,49 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
     reply.header('Content-Disposition', `inline; filename="${encodeURIComponent(att.file_name || att.id)}"`);
 
     return reply.send(fs.createReadStream(resolvedPath));
+  });
+
+  // 7. Estatísticas de Armazenamento (Resumo Geral)
+  fastify.get('/api/ui/storage/summary', async (req) => {
+    const querySchema = z.object({
+      refresh: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional()
+    });
+    const { refresh } = querySchema.parse(req.query);
+    const summary = getStorageSummary(Boolean(refresh));
+    return { summary };
+  });
+
+  // 7.1 Estatísticas de Armazenamento por Conversa (Ranking das mais pesadas)
+  fastify.get('/api/ui/storage/chats', async (req) => {
+    const querySchema = z.object({
+      limit: z.coerce.number().optional().default(100),
+      search: z.string().optional(),
+      refresh: z.preprocess((val) => val === 'true' || val === true, z.boolean()).optional()
+    });
+    const { limit, search, refresh } = querySchema.parse(req.query);
+    const chats = getStorageByChat(limit, search, Boolean(refresh));
+    return { chats };
+  });
+
+  // 7.2 Detalhes de Armazenamento de um Contato / Chat Específico
+  fastify.get('/api/ui/storage/chats/:jid', async (req) => {
+    const paramsSchema = z.object({ jid: z.string() });
+    const { jid } = paramsSchema.parse(req.params);
+    const details = getChatStorageDetails(jid);
+    return { details };
+  });
+
+  // 7.3 Executar Limpeza de Armazenamento (Apenas Mídias ou Mídias + Conversas)
+  fastify.post('/api/ui/storage/clean', async (req) => {
+    const bodySchema = z.object({
+      target: z.string().min(1),
+      mode: z.enum(['media_only', 'all']),
+      olderThanDays: z.coerce.number().optional().default(0)
+    });
+
+    const parsed = bodySchema.parse(req.body);
+    const result = cleanStorage(parsed);
+    return { success: true, result };
   });
 };
 

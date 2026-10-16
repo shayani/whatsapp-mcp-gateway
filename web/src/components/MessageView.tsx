@@ -8,7 +8,8 @@ import {
   ExternalLink,
   Download,
   X,
-  Bot
+  Bot,
+  HardDrive
 } from 'lucide-react';
 import { getAttachmentUrl, type Contact, type Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
@@ -19,6 +20,7 @@ interface MessageViewProps {
   isLoading: boolean;
   onToggleIgnore: (jid: string, newIgnoredState: boolean) => void;
   onToggleAllowSend: (jid: string, newAllowSendState: boolean) => void;
+  onOpenStorage?: (jid: string) => void;
 }
 
 export const MessageView: React.FC<MessageViewProps> = ({
@@ -26,7 +28,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
   messages,
   isLoading,
   onToggleIgnore,
-  onToggleAllowSend
+  onToggleAllowSend,
+  onOpenStorage
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -147,8 +150,21 @@ export const MessageView: React.FC<MessageViewProps> = ({
           ) : null}
         </div>
 
-        {/* Botões de Ação no Topo da Conversa: Envio pelo Agente e Coleta */}
+        {/* Botões de Ação no Topo da Conversa: Armazenamento, Envio pelo Agente e Coleta */}
         <div className="flex items-center gap-2.5">
+          {/* Botão de Armazenamento da Conversa */}
+          {onOpenStorage && (
+            <button
+              type="button"
+              onClick={() => onOpenStorage(chat.jid)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-700/80 bg-gray-900/90 text-gray-300 hover:text-white hover:border-gray-500 transition shadow-sm"
+              title="Gerenciar e limpar armazenamento desta conversa"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Armazenamento</span>
+            </button>
+          )}
+
           {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (apenas conversas privadas) */}
           {!chat.is_group && (
             <button
@@ -247,6 +263,16 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   {hasImages && (
                     <div className="space-y-2 mb-2">
                       {imageAttachments.map((att) => {
+                        const isCleaned = !att.file_path || att.file_path.trim().length === 0;
+                        if (isCleaned) {
+                          return (
+                            <div key={att.id} className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/70 p-2.5 rounded-xl border border-gray-800/80 mb-2">
+                              <ImageIcon className="w-4 h-4 text-gray-500" />
+                              <span className="italic">Imagem removida para economizar espaço</span>
+                            </div>
+                          );
+                        }
+
                         const isSticker = msg.message_type === 'sticker' || (att.mimetype === 'image/webp' && msg.message_type === 'sticker');
 
                         if (isSticker) {
@@ -318,6 +344,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                       {nonImageAttachments.map((att) => {
                         const isAudio = att.mimetype.startsWith('audio/') || att.mimetype.includes('ogg');
                         const isVideo = att.mimetype.startsWith('video/');
+                        const isCleaned = !att.file_path || att.file_path.trim().length === 0;
 
                         if (isAudio) {
                           return (
@@ -357,17 +384,34 @@ export const MessageView: React.FC<MessageViewProps> = ({
                                 </p>
                               )}
 
-                              <audio
-                                controls
-                                preload="none"
-                                src={getAttachmentUrl(att.id)}
-                                className="w-full h-8 mt-1 rounded opacity-90 hover:opacity-100"
-                              />
+                              {isCleaned ? (
+                                <div className="flex items-center gap-1.5 text-[11px] text-gray-500 italic pt-1">
+                                  <FileText className="w-3.5 h-3.5 text-gray-600" />
+                                  <span>Áudio original removido para economizar espaço</span>
+                                </div>
+                              ) : (
+                                <audio
+                                  controls
+                                  preload="none"
+                                  src={getAttachmentUrl(att.id)}
+                                  className="w-full h-8 mt-1 rounded opacity-90 hover:opacity-100"
+                                />
+                              )}
                             </div>
                           );
                         }
 
                         if (isVideo) {
+                          if (isCleaned) {
+                            return (
+                              <div key={att.id} className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400 my-1.5">
+                                <Video className="w-4 h-4 text-gray-500" />
+                                <span className="truncate">{att.file_name || 'Vídeo'}</span>
+                                <span className="text-[11px] text-gray-500 ml-auto italic">Vídeo removido</span>
+                              </div>
+                            );
+                          }
+
                           return (
                             <div key={att.id} className="overflow-hidden rounded-xl border border-gray-800 bg-black/60 max-w-sm my-1.5">
                               <video
@@ -381,6 +425,16 @@ export const MessageView: React.FC<MessageViewProps> = ({
                                   {att.file_name}
                                 </div>
                               )}
+                            </div>
+                          );
+                        }
+
+                        if (isCleaned) {
+                          return (
+                            <div key={att.id} className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400 my-1.5">
+                              <FileText className="w-4 h-4 text-gray-500" />
+                              <span className="truncate font-medium">{att.file_name || 'Documento'}</span>
+                              <span className="text-[11px] text-gray-500 ml-auto italic">Arquivo removido</span>
                             </div>
                           );
                         }

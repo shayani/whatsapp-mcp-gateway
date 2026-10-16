@@ -124,3 +124,85 @@ export function getAttachmentUrl(attachmentId: string): string {
   return `/api/ui/attachments/${encodeURIComponent(attachmentId)}`;
 }
 
+export interface StorageSummary {
+  totalMediaBytes: number;
+  totalMediaFiles: number;
+  databaseBytes: number;
+  walBytes: number;
+  totalMessages: number;
+  totalContactsWithData: number;
+  cachedAt: number;
+}
+
+export interface ChatStorageInfo {
+  jid: string;
+  displayName: string;
+  isGroup: boolean;
+  messageCount: number;
+  mediaCount: number;
+  mediaBytes: number;
+  lastMessageTimestamp: number;
+}
+
+export interface ChatStorageDetails {
+  messageCount: number;
+  mediaCount: number;
+  mediaBytes: number;
+}
+
+export interface CleanStorageOptions {
+  target: 'all' | 'groups_only' | string;
+  mode: 'media_only' | 'all';
+  olderThanDays?: number;
+}
+
+export interface CleanStorageResult {
+  deletedFilesCount: number;
+  freedMediaBytes: number;
+  deletedMessagesCount: number;
+  vacuumExecuted: boolean;
+  newDbSizeBytes: number;
+}
+
+export async function fetchStorageSummary(refresh = false): Promise<StorageSummary> {
+  const url = refresh ? '/api/ui/storage/summary?refresh=true' : '/api/ui/storage/summary';
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.summary;
+}
+
+export async function fetchStorageChats(
+  search?: string,
+  refresh = false,
+  limit = 100
+): Promise<ChatStorageInfo[]> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (refresh) params.set('refresh', 'true');
+  params.set('limit', String(limit));
+
+  const res = await fetch(`/api/ui/storage/chats?${params.toString()}`);
+  const data = await res.json();
+  return data.chats || [];
+}
+
+export async function fetchChatStorageDetails(jid: string): Promise<ChatStorageDetails> {
+  const res = await fetch(`/api/ui/storage/chats/${encodeURIComponent(jid)}`);
+  const data = await res.json();
+  return data.details || { messageCount: 0, mediaCount: 0, mediaBytes: 0 };
+}
+
+export async function cleanStorage(options: CleanStorageOptions): Promise<CleanStorageResult> {
+  const res = await fetch('/api/ui/storage/clean', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(options)
+  });
+  const data = await res.json();
+  if (!data.success) {
+    throw new Error(data.error || 'Falha ao executar limpeza de armazenamento');
+  }
+  return data.result;
+}
+
+

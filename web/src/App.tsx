@@ -6,7 +6,8 @@ import {
   QrCode,
   Radio,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  HardDrive
 } from 'lucide-react';
 import {
   fetchChats,
@@ -27,6 +28,7 @@ import { MessageView } from './components/MessageView';
 import { GlobalSearch } from './components/GlobalSearch';
 import { SettingsModal } from './components/SettingsModal';
 import { QrModal } from './components/QrModal';
+import { StorageModal } from './components/StorageModal';
 
 export const App: React.FC = () => {
   const [chats, setChats] = useState<Contact[]>([]);
@@ -54,6 +56,8 @@ export const App: React.FC = () => {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const [isStorageOpen, setIsStorageOpen] = useState(false);
+  const [storageInitialSearch, setStorageInitialSearch] = useState('');
 
   // Carrega lista de contatos
   const loadChats = useCallback(async (searchQuery?: string) => {
@@ -230,6 +234,18 @@ export const App: React.FC = () => {
             <span>{authStatus.status === 'connected' ? 'WhatsApp Online' : 'Escanear QR'}</span>
           </button>
 
+          {/* Gerenciamento de Armazenamento */}
+          <button
+            onClick={() => {
+              setStorageInitialSearch('');
+              setIsStorageOpen(true);
+            }}
+            title="Gerenciamento de Armazenamento e Limpeza"
+            className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 transition"
+          >
+            <HardDrive className="w-4 h-4" />
+          </button>
+
           {/* Configurações (Groq API Key) */}
           <button
             onClick={() => setIsSettingsOpen(true)}
@@ -267,11 +283,28 @@ export const App: React.FC = () => {
             isLoading={isLoadingMessages}
             onToggleIgnore={handleToggleIgnore}
             onToggleAllowSend={handleToggleAllowSend}
+            onOpenStorage={(jid) => {
+              const found = chats.find((c) => c.jid === jid);
+              setStorageInitialSearch(found?.name || found?.notify_name || jid);
+              setIsStorageOpen(true);
+            }}
           />
         )}
       </div>
 
       {/* Modais */}
+      <StorageModal
+        isOpen={isStorageOpen}
+        initialSearch={storageInitialSearch}
+        onClose={() => setIsStorageOpen(false)}
+        onStorageCleaned={() => {
+          loadChats();
+          if (selectedChat?.jid) {
+            loadChatMessages(selectedChat.jid, true);
+          }
+        }}
+      />
+
       <SettingsModal
         isOpen={isSettingsOpen}
         hasGroqKey={settings.hasGroqKey}

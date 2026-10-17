@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   makeWASocket,
   useMultiFileAuthState,
@@ -39,7 +41,46 @@ class WhatsAppService {
     userName: null
   };
 
-  private isStarting = false;
+  public isStarting = false;
+
+  public cleanAuthDir(): void {
+    try {
+      if (fs.existsSync(config.authDir)) {
+        const files = fs.readdirSync(config.authDir);
+        for (const file of files) {
+          fs.rmSync(path.join(config.authDir, file), { recursive: true, force: true });
+        }
+        console.log('[WhatsApp] Credenciais antigas de autenticação removidas com sucesso.');
+      }
+    } catch (err) {
+      console.error('[WhatsApp] Erro ao limpar diretório de autenticação:', err);
+    }
+  }
+
+  public async restart(forceCleanAuth = false): Promise<void> {
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners('connection.update');
+        this.sock.end(undefined);
+      } catch (e) {
+        console.warn('[WhatsApp] Erro ao fechar socket anterior:', e);
+      }
+      this.sock = null;
+    }
+
+    this.isStarting = false;
+    this.state.status = 'disconnected';
+    this.state.qrCodeRaw = null;
+    this.state.qrCodeDataUrl = null;
+
+    if (forceCleanAuth) {
+      this.cleanAuthDir();
+      this.state.userJid = null;
+      this.state.userName = null;
+    }
+
+    await this.start();
+  }
 
   public async start(): Promise<void> {
     if (this.isStarting || this.state.status === 'connected') {
@@ -49,6 +90,17 @@ class WhatsAppService {
 
     try {
       const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+
+      // Se a sessão anterior foi deslogada (registered: false com me existente), limpa e reinicia do zero
+      if (state.creds && state.creds.registered === false && state.creds.me) {
+        console.log('[WhatsApp] Sessão anterior marcada como não-registrada (deslogada). Limpando para gerar novo QR Code...');
+        this.cleanAuthDir();
+        this.state.userJid = null;
+        this.state.userName = null;
+        this.isStarting = false;
+        return this.start();
+      }
+
       const { version, isLatest } = await fetchLatestBaileysVersion();
       console.log(`[WhatsApp] Usando Baileys v${version.join('.')} (última versão: ${isLatest})`);
 
@@ -91,12 +143,20 @@ class WhatsAppService {
           this.state.qrCodeDataUrl = null;
 
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+          const shouldReconnect = !isLoggedOut;
 
           console.log(`[WhatsApp] Conexão encerrada (código: ${statusCode}). Reconectar: ${shouldReconnect}`);
 
-          if (shouldReconnect) {
-            this.isStarting = false;
+          this.isStarting = false;
+
+          if (isLoggedOut) {
+            console.log('[WhatsApp] Sessão encerrada (401 / loggedOut). Limpando credenciais para permitir novo pareamento via QR Code...');
+            this.cleanAuthDir();
+            this.state.userJid = null;
+            this.state.userName = null;
+            setTimeout(() => this.start(), 1500);
+          } else if (shouldReconnect) {
             setTimeout(() => this.start(), 3000);
           }
         } else if (connection === 'open') {

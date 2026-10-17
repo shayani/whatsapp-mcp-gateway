@@ -205,4 +205,20 @@ export async function cleanStorage(options: CleanStorageOptions): Promise<CleanS
   return data.result;
 }
 
+export async function requestReconnect(forceClean = true): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/reconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceClean })
+    });
+    const data = await res.json();
+    return Boolean(data.success);
+  } catch (err) {
+    console.error('Erro ao solicitar reconexão:', err);
+    return false;
+  }
+}
+
+
 

@@ -317,6 +317,7 @@ export const App: React.FC = () => {
         isOpen={isQrOpen}
         authStatus={authStatus}
         onClose={() => setIsQrOpen(false)}
+        onRefreshStatus={loadMeta}
       />
     </div>
   );

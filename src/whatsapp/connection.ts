@@ -9,6 +9,7 @@ import {
   normalizeMessageContent,
   extractMessageContent,
   jidNormalizedUser,
+  Browsers,
   type WAMessage,
   type WASocket,
   type ConnectionState
@@ -90,17 +91,6 @@ class WhatsAppService {
 
     try {
       const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
-
-      // Se a sessão anterior foi deslogada (registered: false com me existente), limpa e reinicia do zero
-      if (state.creds && state.creds.registered === false && state.creds.me) {
-        console.log('[WhatsApp] Sessão anterior marcada como não-registrada (deslogada). Limpando para gerar novo QR Code...');
-        this.cleanAuthDir();
-        this.state.userJid = null;
-        this.state.userName = null;
-        this.isStarting = false;
-        return this.start();
-      }
-
       const { version, isLatest } = await fetchLatestBaileysVersion();
       console.log(`[WhatsApp] Usando Baileys v${version.join('.')} (última versão: ${isLatest})`);
 
@@ -109,6 +99,7 @@ class WhatsAppService {
       this.sock = makeWASocket({
         version,
         logger,
+        browser: Browsers.ubuntu('Desktop'),
         printQRInTerminal: false, // Nós mesmos imprimimos abaixo para controle fino
         auth: {
           creds: state.creds,
@@ -138,25 +129,32 @@ class WhatsAppService {
         }
 
         if (connection === 'close') {
-          this.state.status = 'disconnected';
-          this.state.qrCodeRaw = null;
-          this.state.qrCodeDataUrl = null;
-
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-          const shouldReconnect = !isLoggedOut;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut; // 401
+          const isRestartRequired = statusCode === DisconnectReason.restartRequired; // 515
 
-          console.log(`[WhatsApp] Conexão encerrada (código: ${statusCode}). Reconectar: ${shouldReconnect}`);
+          console.log(`[WhatsApp] Conexão encerrada (código: ${statusCode}, loggedOut: ${isLoggedOut}, restartRequired: ${isRestartRequired})`);
 
           this.isStarting = false;
 
           if (isLoggedOut) {
-            console.log('[WhatsApp] Sessão encerrada (401 / loggedOut). Limpando credenciais para permitir novo pareamento via QR Code...');
-            this.cleanAuthDir();
+            this.state.status = 'disconnected';
+            this.state.qrCodeRaw = null;
+            this.state.qrCodeDataUrl = null;
             this.state.userJid = null;
             this.state.userName = null;
-            setTimeout(() => this.start(), 1500);
-          } else if (shouldReconnect) {
+            console.log('[WhatsApp] Sessão encerrada permanentemente (401 / loggedOut). Limpando credenciais para permitir novo pareamento via QR Code...');
+            this.cleanAuthDir();
+            setTimeout(() => this.start(), 1000);
+          } else if (isRestartRequired) {
+            this.state.status = 'connecting';
+            console.log('[WhatsApp] Reinício necessário para concluir conexão (código 515). Reconectando imediatamente com as credenciais salvas...');
+            // As credenciais de pareamento acabaram de ser gravadas pelo Baileys. Reconecta imediatamente para finalizar o handshake com o celular!
+            setTimeout(() => this.start(), 300);
+          } else {
+            this.state.status = 'disconnected';
+            this.state.qrCodeRaw = null;
+            this.state.qrCodeDataUrl = null;
             setTimeout(() => this.start(), 3000);
           }
         } else if (connection === 'open') {

@@ -17,17 +17,14 @@ export const QrModal: React.FC<QrModalProps> = ({
 }) => {
   const [isRequesting, setIsRequesting] = useState(false);
 
-  // Quando o modal abre, se não estiver conectado e não tiver QR Code, solicita reconexão/novo QR
+  // Polling frequente (2s) enquanto o modal estiver aberto para manter o status e QR Code atualizados
   useEffect(() => {
     if (!isOpen) return;
 
-    if (authStatus.status !== 'connected' && !authStatus.qrCodeDataUrl) {
-      requestReconnect(true).then(() => {
-        if (onRefreshStatus) onRefreshStatus();
-      });
+    if (onRefreshStatus) {
+      onRefreshStatus();
     }
 
-    // Polling frequente (2s) enquanto o modal estiver aberto para exibir o QR code assim que gerado
     const interval = setInterval(() => {
       if (onRefreshStatus) {
         onRefreshStatus();
@@ -35,7 +32,7 @@ export const QrModal: React.FC<QrModalProps> = ({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isOpen, authStatus.status, authStatus.qrCodeDataUrl, onRefreshStatus]);
+  }, [isOpen, onRefreshStatus]);
 
   if (!isOpen) return null;
 

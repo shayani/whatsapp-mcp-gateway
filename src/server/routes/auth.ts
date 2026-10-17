@@ -4,13 +4,6 @@ import { whatsappService } from '../../whatsapp/connection.js';
 
 export const authRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/auth/status', async () => {
-    // Se o serviço estiver parado sem estar conectado nem com QR gerado, auto-inicia
-    if (whatsappService.state.status === 'disconnected' && !whatsappService.isStarting && !whatsappService.state.qrCodeDataUrl) {
-      whatsappService.start().catch((err) => {
-        console.error('[WhatsApp] Erro ao auto-iniciar via /api/auth/status:', err);
-      });
-    }
-
     return {
       status: whatsappService.state.status,
       qrCodeDataUrl: whatsappService.state.qrCodeDataUrl,

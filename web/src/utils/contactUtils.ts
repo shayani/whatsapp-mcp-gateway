@@ -1,3 +1,4 @@
+import type { Translate } from '../i18n';
 import type { Contact } from '../api';
 
 export interface FormattedContactInfo {
@@ -26,7 +27,7 @@ export function formatPhoneNumber(rawNumber: string): string {
   return rawNumber;
 }
 
-export function getContactDisplay(contact: Contact): FormattedContactInfo {
+export function getContactDisplay(contact: Contact, t: Translate): FormattedContactInfo {
   const rawId = contact.jid.split('@')[0];
   const isPurePhone = /^\d{8,15}$/.test(rawId) && !rawId.includes('-');
   const formattedPhone = isPurePhone ? formatPhoneNumber(rawId) : undefined;
@@ -34,7 +35,7 @@ export function getContactDisplay(contact: Contact): FormattedContactInfo {
   // Se for grupo
   if (Boolean(contact.is_group)) {
     return {
-      title: contact.name || contact.notify_name || 'Grupo sem nome',
+      title: contact.name || contact.notify_name || t("Unnamed group"),
       subtitle: undefined,
       formattedPhone: undefined
     };
@@ -60,7 +61,7 @@ export function getContactDisplay(contact: Contact): FormattedContactInfo {
 
   // Se não tiver nenhum nome, o título principal é o telefone formatado
   return {
-    title: formattedPhone || 'Contato sem nome',
+    title: formattedPhone || t("Unnamed contact"),
     subtitle: undefined,
     formattedPhone
   };

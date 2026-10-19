@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n';
 import React, { useState } from 'react';
 import { Users, User, Search, Pause, Zap } from 'lucide-react';
 import type { Contact } from '../api';
@@ -16,6 +17,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   onSelectChat,
   onSearchChange
 }) => {
+  const { t, locale } = useI18n();
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,9 +31,9 @@ export const ChatList: React.FC<ChatListProps> = ({
     const date = new Date(ts * 1000);
     const now = new Date();
     if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+    return date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
   };
 
   return (
@@ -42,7 +44,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Filtrar conversas..."
+            placeholder={t("Filter chats...")}
             value={searchTerm}
             onChange={handleSearch}
             className="w-full bg-gray-800/90 text-xs rounded-lg pl-8 pr-3 py-1.5 text-gray-200 placeholder-gray-500 border border-gray-700/50 focus:outline-none focus:border-emerald-500 transition"
@@ -54,19 +56,19 @@ export const ChatList: React.FC<ChatListProps> = ({
       <div className="flex-1 overflow-y-auto divide-y divide-gray-800/40">
         {chats.length === 0 ? (
           <div className="p-6 text-center text-gray-500 text-xs">
-            Nenhuma conversa encontrada.
+            {t("No chats found.")}
           </div>
         ) : (
           chats.map((chat) => {
             const isSelected = selectedChatJid === chat.jid;
             const isIgnored = Boolean(chat.is_ignored);
-            const { title } = getContactDisplay(chat);
+            const { title } = getContactDisplay(chat, t);
 
             return (
               <div
                 key={chat.jid}
                 onClick={() => onSelectChat(chat)}
-                title={isIgnored ? `${title} (Coleta Pausada)` : `${title} (Coleta Ativa)`}
+                title={isIgnored ? `${title} (${t('Collection Paused')})` : `${title} (${t('Collection Active')})`}
                 className={`px-3 py-2.5 flex items-center gap-2.5 cursor-pointer transition select-none ${
                   isSelected
                     ? 'bg-emerald-950/40 border-l-2 border-emerald-500 text-white'
@@ -88,14 +90,14 @@ export const ChatList: React.FC<ChatListProps> = ({
                   {/* Indicador de Status da Coleta */}
                   {isIgnored ? (
                     <span
-                      title="Coleta pausada"
+                      title={t("Collection paused")}
                       className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-rose-500 rounded-full border-2 border-gray-950 flex items-center justify-center text-[8px] text-white"
                     >
                       <Pause className="w-1.5 h-1.5 fill-current" />
                     </span>
                   ) : (
                     <span
-                      title="Coleta ativa"
+                      title={t("Collection active")}
                       className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-gray-950"
                     />
                   )}
@@ -108,12 +110,12 @@ export const ChatList: React.FC<ChatListProps> = ({
                       <span className="truncate">{title}</span>
                       {chat.is_group ? (
                         <span className="text-[9px] text-indigo-400 bg-indigo-950/70 px-1 rounded flex-shrink-0 border border-indigo-800/40">
-                          Grupo
+                          {t("Group")}
                         </span>
                       ) : null}
                       {chat.allow_send && !chat.is_group ? (
                         <span
-                          title="Envio por agentes autorizado"
+                          title={t("Agent sending authorized")}
                           className="text-amber-400 flex-shrink-0 flex items-center ml-0.5"
                         >
                           <Zap className="w-3 h-3 fill-current" />

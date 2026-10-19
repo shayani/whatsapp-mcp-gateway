@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n';
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Mic,
@@ -31,6 +32,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
   onToggleAllowSend,
   onOpenStorage
 }) => {
+  const { t, locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const activeChatJidRef = useRef<string | null>(null);
@@ -87,19 +89,19 @@ export const MessageView: React.FC<MessageViewProps> = ({
         <div className="w-16 h-16 rounded-full bg-gray-900 flex items-center justify-center mb-4 text-gray-600">
           💬
         </div>
-        <h3 className="text-lg font-medium text-gray-300 mb-1">Nenhuma conversa selecionada</h3>
+        <h3 className="text-lg font-medium text-gray-300 mb-1">{t("No chat selected")}</h3>
         <p className="text-sm max-w-sm">
-          Selecione um contato ou grupo na barra lateral para visualizar as mensagens coletadas e as transcrições de áudio.
+          {t("Select a contact or group in the sidebar to view collected messages and audio transcriptions.")}
         </p>
       </div>
     );
   }
 
   const isIgnored = Boolean(chat.is_ignored);
-  const contactInfo = getContactDisplay(chat);
+  const contactInfo = getContactDisplay(chat, t);
 
   const formatMessageTime = (ts: number) => {
-    return new Date(ts * 1000).toLocaleString([], {
+    return new Date(ts * 1000).toLocaleString(locale, {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
@@ -141,7 +143,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
             {contactInfo.title}
             {chat.is_group ? (
               <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
-                Grupo
+                {t("Group")}
               </span>
             ) : null}
           </h2>
@@ -158,10 +160,10 @@ export const MessageView: React.FC<MessageViewProps> = ({
               type="button"
               onClick={() => onOpenStorage(chat.jid)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-700/80 bg-gray-900/90 text-gray-300 hover:text-white hover:border-gray-500 transition shadow-sm"
-              title="Gerenciar e limpar armazenamento desta conversa"
+              title={t("Manage and clean up storage for this chat")}
             >
               <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Armazenamento</span>
+              <span>{t("Storage")}</span>
             </button>
           )}
 
@@ -175,10 +177,10 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   ? 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
                   : 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
               }`}
-              title={chat.allow_send ? 'Envio por agentes liberado para este contato' : 'Envio por agentes bloqueado para este contato'}
+              title={chat.allow_send ? t("Agent sending enabled for this contact") : t("Agent sending blocked for this contact")}
             >
               <span className={`w-2 h-2 rounded-full ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
-              <span>{chat.allow_send ? 'Envio por agentes: Ativo' : 'Envio por agentes: Bloqueado'}</span>
+              <span>{chat.allow_send ? t("Agent sending: Enabled") : t("Agent sending: Blocked")}</span>
               <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${chat.allow_send ? 'bg-amber-500 justify-end' : 'bg-gray-700 justify-start'}`}>
                 <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
               </span>
@@ -196,7 +198,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
             }`}
           >
             <span className={`w-2 h-2 rounded-full ${isIgnored ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
-            <span>{isIgnored ? 'Coleta Pausada' : 'Coleta Ativa'}</span>
+            <span>{isIgnored ? t("Collection Paused") : t("Collection Active")}</span>
             <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${isIgnored ? 'bg-gray-700 justify-start' : 'bg-emerald-500 justify-end'}`}>
               <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
             </span>
@@ -208,11 +210,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
       <div ref={containerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
         {isLoading ? (
           <div className="flex justify-center items-center h-32 text-gray-500 text-sm">
-            Carregando mensagens...
+            {t("Loading messages...")}
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-12 text-gray-500 text-sm">
-            Nenhuma mensagem registrada para esta conversa.
+            {t("No messages recorded for this chat.")}
           </div>
         ) : (
           messages.map((msg) => {
@@ -248,7 +250,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   {isSentByHermes && (
                     <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-950/80 text-amber-300 border border-amber-800/60 mb-1.5">
                       <Bot className="w-3 h-3 text-amber-400" />
-                      <span>Enviado por agentes</span>
+                      <span>{t("Sent by agents")}</span>
                     </div>
                   )}
 
@@ -268,7 +270,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                           return (
                             <div key={att.id} className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/70 p-2.5 rounded-xl border border-gray-800/80 mb-2">
                               <ImageIcon className="w-4 h-4 text-gray-500" />
-                              <span className="italic">Imagem removida para economizar espaço</span>
+                              <span className="italic">{t("Image removed to save space")}</span>
                             </div>
                           );
                         }
@@ -280,12 +282,12 @@ export const MessageView: React.FC<MessageViewProps> = ({
                             <div key={att.id} className="py-1">
                               <img
                                 src={getAttachmentUrl(att.id)}
-                                alt={att.file_name || 'Figurinha'}
+                                alt={att.file_name || t("Sticker")}
                                 loading="lazy"
                                 className="w-28 h-28 object-contain cursor-pointer hover:scale-105 transition-transform drop-shadow"
                                 onClick={() => setSelectedImage({
                                   url: getAttachmentUrl(att.id),
-                                  fileName: att.file_name || 'Figurinha',
+                                  fileName: att.file_name || t("Sticker"),
                                   fileSize: att.file_size,
                                   caption: null
                                 })}
@@ -300,21 +302,21 @@ export const MessageView: React.FC<MessageViewProps> = ({
                             className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 max-w-sm cursor-pointer shadow-sm"
                             onClick={() => setSelectedImage({
                               url: getAttachmentUrl(att.id),
-                              fileName: att.file_name || 'Imagem',
+                              fileName: att.file_name || t("Image"),
                               fileSize: att.file_size,
                               caption: msg.content
                             })}
                           >
                             <img
                               src={getAttachmentUrl(att.id)}
-                              alt={att.file_name || 'Imagem'}
+                              alt={att.file_name || t("Image")}
                               loading="lazy"
                               className="max-h-72 w-full object-contain rounded-xl transition duration-200 group-hover:brightness-105"
                             />
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2 pointer-events-none">
                               <span className="flex items-center gap-1.5 text-[11px] font-medium bg-gray-900/85 text-gray-200 px-2 py-1 rounded-md backdrop-blur-sm border border-gray-700/50 shadow">
                                 <Maximize2 className="w-3 h-3 text-emerald-400" />
-                                Ampliar
+                                {t("Enlarge")}
                               </span>
                             </div>
                           </div>
@@ -327,7 +329,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   {isImageMsgWithoutAtt && (
                     <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800/80 mb-2">
                       <ImageIcon className="w-4 h-4 text-gray-500 animate-pulse" />
-                      <span>Carregando imagem...</span>
+                      <span>{t("Loading image...")}</span>
                     </div>
                   )}
 
@@ -354,20 +356,20 @@ export const MessageView: React.FC<MessageViewProps> = ({
                             >
                               <div className="flex items-center gap-2 text-xs font-semibold text-indigo-400">
                                 <Mic className="w-4 h-4" />
-                                Mensagem de Voz / Áudio
+                                {t("Voice Message / Audio")}
                                 {att.transcription_status === 'completed' && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 font-normal ml-auto">
-                                    Transcrição Concluída
+                                    {t("Transcription Complete")}
                                   </span>
                                 )}
                                 {att.transcription_status === 'pending' && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-900/60 text-amber-300 font-normal ml-auto animate-pulse">
-                                    Transcrevendo...
+                                    {t("Transcribing...")}
                                   </span>
                                 )}
                                 {att.transcription_status === 'failed' && (
                                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-900/60 text-rose-300 font-normal ml-auto">
-                                    Falha
+                                    {t("Failed")}
                                   </span>
                                 )}
                               </div>
@@ -379,15 +381,15 @@ export const MessageView: React.FC<MessageViewProps> = ({
                               ) : (
                                 <p className="text-xs text-gray-500 italic">
                                   {att.transcription_status === 'pending'
-                                    ? 'Aguardando processamento do Whisper...'
-                                    : 'Sem transcrição disponível.'}
+                                    ? t("Waiting for Whisper processing...")
+                                    : t("No transcription available.")}
                                 </p>
                               )}
 
                               {isCleaned ? (
                                 <div className="flex items-center gap-1.5 text-[11px] text-gray-500 italic pt-1">
                                   <FileText className="w-3.5 h-3.5 text-gray-600" />
-                                  <span>Áudio original removido para economizar espaço</span>
+                                  <span>{t("Original audio removed to save space")}</span>
                                 </div>
                               ) : (
                                 <audio
@@ -406,8 +408,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
                             return (
                               <div key={att.id} className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400 my-1.5">
                                 <Video className="w-4 h-4 text-gray-500" />
-                                <span className="truncate">{att.file_name || 'Vídeo'}</span>
-                                <span className="text-[11px] text-gray-500 ml-auto italic">Vídeo removido</span>
+                                <span className="truncate">{att.file_name || t("Video")}</span>
+                                <span className="text-[11px] text-gray-500 ml-auto italic">{t("Video removed")}</span>
                               </div>
                             );
                           }
@@ -433,8 +435,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
                           return (
                             <div key={att.id} className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400 my-1.5">
                               <FileText className="w-4 h-4 text-gray-500" />
-                              <span className="truncate font-medium">{att.file_name || 'Documento'}</span>
-                              <span className="text-[11px] text-gray-500 ml-auto italic">Arquivo removido</span>
+                              <span className="truncate font-medium">{att.file_name || t("Document")}</span>
+                              <span className="text-[11px] text-gray-500 ml-auto italic">{t("File removed")}</span>
                             </div>
                           );
                         }
@@ -448,7 +450,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                             className="flex items-center gap-3 bg-gray-950/50 hover:bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 text-xs text-gray-300 transition group"
                           >
                             <FileText className="w-4 h-4 text-amber-400 group-hover:text-amber-300" />
-                            <span className="truncate font-medium">{att.file_name || 'Anexo'}</span>
+                            <span className="truncate font-medium">{att.file_name || t("Attachment")}</span>
                             <span className="text-[11px] text-gray-500 ml-auto group-hover:text-gray-300 flex items-center gap-1">
                               {att.file_size ? `${Math.round(att.file_size / 1024)} KB` : ''}
                               <Download className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -503,7 +505,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                 href={selectedImage.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Abrir imagem original em nova aba"
+                title={t("Open original image in a new tab")}
                 className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
               >
                 <ExternalLink className="w-4 h-4" />
@@ -511,14 +513,14 @@ export const MessageView: React.FC<MessageViewProps> = ({
               <a
                 href={selectedImage.url}
                 download={selectedImage.fileName}
-                title="Baixar imagem"
+                title={t("Download image")}
                 className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
               >
                 <Download className="w-4 h-4" />
               </a>
               <button
                 onClick={() => setSelectedImage(null)}
-                title="Fechar (Esc)"
+                title={t("Close (Esc)")}
                 className="p-2 rounded-lg bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 transition ml-2"
               >
                 <X className="w-5 h-5" />

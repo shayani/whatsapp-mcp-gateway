@@ -1,59 +1,68 @@
 # WhatsApp Gateway & MCP Server
 
-Gateway containerizado em **TypeScript (Node.js 22)** para conectar sua conta do WhatsApp via **Baileys**, salvar e indexar mensagens e mídias em banco de dados local **SQLite (WAL + FTS5)**, realizar **transcrição assíncrona de áudios via Whisper (Groq/OpenAI)** e disponibilizar consultas exclusivamente via **Model Context Protocol (MCP)** para agentes de IA (Claude, Cursor, Antigravity, etc.).
+A containerized gateway built with **TypeScript (Node.js 22)** that connects your WhatsApp account through **Baileys**, stores and indexes messages and media in a local **SQLite (WAL + FTS5)** database, provides **asynchronous audio transcription with Whisper (Groq/OpenAI)**, and exposes queries to AI agents (Claude, Cursor, Antigravity, etc.) exclusively through the **Model Context Protocol (MCP)**.
 
-A aplicação inclui também um **Dashboard Web integrado** na porta `8765` para consulta de mensagens, busca global e ativação/desativação da coleta de contatos e grupos com um clique.
+The application also includes an **integrated web dashboard** on port `8765` for browsing messages, searching across conversations, and enabling or disabling message collection for individual contacts and groups with a single click.
 
 ---
 
-## 🚀 Como Iniciar em Produção (Docker)
+## 🚀 Getting Started in Production (Docker)
 
-O modo nativo de execução é via Docker Compose.
+Docker Compose is the standard way to run the application.
 
-### 1. Criar arquivo `.env`
-Copie o exemplo e configure as variáveis desejadas:
+### 1. Create the `.env` file
+
+Copy the example file and configure the variables as needed:
+
 ```bash
 cp .env.example .env
 ```
-*(Você também pode inserir a chave da Groq diretamente pela interface web depois que o container subir).*
 
-### 2. Subir o container
+*(You can also enter your Groq API key through the web interface after the container starts.)*
+
+### 2. Start the container
+
 ```bash
 docker compose up -d --build
 ```
 
-### 3. Parear com o WhatsApp
-Você tem duas formas de escanear o QR Code:
-1. **Pela Interface Web** (Recomendado): Acesse `http://localhost:8765/auth` no seu navegador.
-2. **Pelo Terminal**: Visualize o QR Code nos logs:
+### 3. Link your WhatsApp account
+
+You can access the QR code in two ways:
+
+1. **Web interface** (recommended): Open `http://localhost:8765/auth` in your browser.
+2. **Terminal**: View the QR code in the logs:
    ```bash
    docker compose logs -f whatsapp-gateway
    ```
-Abra o WhatsApp no seu smartphone > **Aparelhos conectados** > **Conectar aparelho** e aponte para o QR Code.
 
-Pronto! Todas as mensagens recebidas passarão pelo filtro na borda e serão persistidas no SQLite em `./data/db/whatsapp.db`.
+Open WhatsApp on your smartphone, go to **Linked devices** > **Link a device**, and scan the QR code.
 
----
-
-## 🖥️ Dashboard Web Integrado (`:8765`)
-
-Acesse no navegador: **`http://localhost:8765`**
-
-- **Lista de Conversas**: Exibe contatos e grupos com horário da última mensagem.
-- **Toggle Liga/Desliga ("Coletar / Ignorar")**: Ao lado de cada contato ou grupo, clique no switch para habilitar ou desabilitar a coleta em tempo real (atualiza o banco e o filtro do Baileys na hora).
-- **Busca Global (FTS5)**: Pesquise palavras-chave em todas as mensagens e transcrições de voz simultaneamente no topo.
-- **Histórico e Transcrições**: Visualize balões de conversa com as transcrições das mensagens de áudio em destaque.
-- **Configurações**: Clique no ícone de chave no canto superior para inserir ou atualizar sua chave de API da Groq (`gsk_...`).
+You are ready to go! Incoming messages will pass through the collection filter, and matching messages will be stored in SQLite at `./data/db/whatsapp.db`.
 
 ---
 
-## 🤖 Conectando seus Agentes via MCP
+## 🖥️ Integrated Web Dashboard (`:8765`)
 
-O servidor MCP roda nativamente via transporte **HTTP / Server-Sent Events (SSE)** em:
+Open **`http://localhost:8765`** in your browser.
+
+- **Chat list**: Displays contacts and groups with the time of their most recent message.
+- **Collection toggle ("Coletar / Ignorar", meaning "Collect / Ignore")**: Click the switch next to a contact or group to enable or disable collection in real time. This immediately updates both the database and the Baileys filter.
+- **Global search (FTS5)**: Use the search field at the top to search for keywords across all messages and voice transcriptions at once.
+- **History and transcriptions**: Browse chat bubbles with highlighted audio message transcriptions.
+- **Settings**: Click the key icon in the top corner to enter or update your Groq API key (`gsk_...`).
+
+---
+
+## 🤖 Connecting Your AI Agents via MCP
+
+The MCP server uses the **HTTP / Server-Sent Events (SSE)** transport at:
 `http://localhost:8765/sse`
 
-### Exemplo de Configuração para Claude Desktop
-Adicione ao seu `claude_desktop_config.json`:
+### Claude Desktop Configuration Example
+
+Add the following to your `claude_desktop_config.json`:
+
 ```json
 {
   "mcpServers": {
@@ -64,32 +73,35 @@ Adicione ao seu `claude_desktop_config.json`:
 }
 ```
 
-### Exemplo de Configuração para Cursor / Antigravity
-Nas configurações de MCP:
+### Cursor / Antigravity Configuration Example
+
+In the MCP settings, use:
+
 - **Type**: `sse`
 - **URL**: `http://localhost:8765/sse`
 
 ---
 
-## 🛠️ Catálogo de Ferramentas MCP Disponíveis
+## 🛠️ Available MCP Tools
 
-| Ferramenta | Descrição |
+| Tool | Description |
 | :--- | :--- |
-| `list_chats` | Lista conversas recentes com JID, nome, data e status de coleta. |
-| `get_chat_history` | Retorna histórico de mensagens cronológico de um contato com anexos e transcrições de áudio. |
-| `search_messages` | Busca full-text indexada via SQLite FTS5 no conteúdo de textos e áudios. |
-| `get_attachment_info` | Detalhes e caminho local em disco de mídias baixadas. |
-| `get_contact_info` | Metadados de cadastro de um contato ou grupo. |
+| `list_chats` | Lists recent chats with their JID, name, date, and collection status. |
+| `get_chat_history` | Returns a contact's message history in chronological order, including attachments and audio transcriptions. |
+| `search_messages` | Performs indexed full-text searches across message text and audio transcriptions using SQLite FTS5. |
+| `get_attachment_info` | Returns details and the local file path of downloaded media. |
+| `get_contact_info` | Returns metadata for a contact or group. |
 
 ---
 
-## 📁 Estrutura de Diretórios Persistentes (`./data`)
+## 📁 Persistent Directory Structure (`./data`)
 
-Todo o estado da aplicação fica mapeado na pasta `./data`:
+All application state is mapped to the `./data` directory:
+
 ```text
 ./data/
-├── auth/         # Credenciais da sessão do WhatsApp (creds.json)
-├── db/           # Banco de dados SQLite (whatsapp.db e WAL)
-├── media/        # Mídias e áudios baixados
-└── config.yaml   # Configurações globais e listas padrão
+├── auth/         # WhatsApp session credentials (creds.json)
+├── db/           # SQLite database (whatsapp.db and WAL)
+├── media/        # Downloaded media and audio files
+└── config.yaml   # Global settings and default lists
 ```

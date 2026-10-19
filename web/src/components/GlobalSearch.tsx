@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n';
 import React from 'react';
 import { Search, X, MessageSquare, Mic } from 'lucide-react';
 import type { SearchResult } from '../api';
@@ -17,8 +18,9 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
   onClose,
   onSelectResult
 }) => {
+  const { t, locale } = useI18n();
   const formatTimestamp = (ts: number) => {
-    return new Date(ts * 1000).toLocaleString([], {
+    return new Date(ts * 1000).toLocaleString(locale, {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
@@ -33,10 +35,10 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
         <div className="flex items-center gap-2 text-sm text-gray-300">
           <Search className="w-4 h-4 text-emerald-400" />
           <span>
-            Resultados de busca para: <strong className="text-white">"{query}"</strong>
+            {t("Search results for:")} <strong className="text-white">"{query}"</strong>
           </span>
           <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full ml-2">
-            {results.length} encontrados
+            {results.length} {t("found")}
           </span>
         </div>
         <button
@@ -50,10 +52,10 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
       {/* Lista de Resultados */}
       <div className="flex-1 overflow-y-auto p-6 space-y-3">
         {isSearching ? (
-          <div className="text-center py-12 text-gray-500 text-sm">Buscando mensagens...</div>
+          <div className="text-center py-12 text-gray-500 text-sm">{t("Searching messages...")}</div>
         ) : results.length === 0 ? (
           <div className="text-center py-12 text-gray-500 text-sm">
-            Nenhuma mensagem ou transcrição encontrada para o termo informado.
+            {t("No messages or transcriptions found for this search.")}
           </div>
         ) : (
           results.map((res) => (

@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   HardDrive,
@@ -45,6 +46,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
   onStorageCleaned,
   initialSearch = ''
 }) => {
+  const { t, locale } = useI18n();
   const [summary, setSummary] = useState<StorageSummary | null>(null);
   const [chats, setChats] = useState<ChatStorageInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -151,8 +153,8 @@ export const StorageModal: React.FC<StorageModalProps> = ({
         success: true,
         message:
           confirmDialog.mode === 'media_only'
-            ? `Liberados ${formatBytes(result.freedMediaBytes)} apagando ${result.deletedFilesCount} arquivo(s) de mídia.`
-            : `Liberados ${formatBytes(result.freedMediaBytes)}. ${result.deletedMessagesCount} mensagem(ns) e ${result.deletedFilesCount} arquivo(s) removidos. SQLite otimizado.`,
+            ? t('Freed {size} by deleting {files} media file(s).', { size: formatBytes(result.freedMediaBytes), files: result.deletedFilesCount })
+            : t('Freed {size}. Removed {messages} message(s) and {files} file(s). SQLite optimized.', { size: formatBytes(result.freedMediaBytes), messages: result.deletedMessagesCount, files: result.deletedFilesCount }),
         result
       });
 
@@ -165,7 +167,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
       console.error('Erro ao limpar armazenamento:', err);
       setCleanFeedback({
         success: false,
-        message: err.message || 'Erro ao realizar a limpeza.'
+        message: t("Storage cleanup failed. Please try again.")
       });
     } finally {
       setIsCleaning(false);
@@ -184,13 +186,13 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
-                Gerenciamento de Armazenamento
+                {t("Storage Management")}
                 <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">
-                  Sob Demanda
+                  {t("On Demand")}
                 </span>
               </h2>
               <p className="text-xs text-gray-400">
-                Visualize as conversas mais pesadas e libere espaço limpando mídias ou histórico.
+                {t("Find chats using the most storage and free up space by clearing media or history.")}
               </p>
             </div>
           </div>
@@ -199,11 +201,11 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             <button
               onClick={() => loadData(true)}
               disabled={isLoading}
-              title="Recalcular estatísticas"
+              title={t("Recalculate statistics")}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 transition disabled:opacity-50"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Atualizar</span>
+              <span>{t("Refresh")}</span>
             </button>
             <button
               onClick={onClose}
@@ -244,9 +246,9 @@ export const StorageModal: React.FC<StorageModalProps> = ({
           <div className="bg-emerald-950/40 border border-emerald-800/60 rounded-xl p-3.5 flex items-start gap-3 shadow-sm">
             <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
             <div className="text-xs text-emerald-200/90 leading-relaxed">
-              <span className="font-semibold text-emerald-300">Apenas cópias locais deste servidor: </span>
-              A limpeza de mídias e conversas atua <strong>estritamente sobre o disco local</strong> deste gateway.
-              <span className="text-emerald-100 font-medium"> Nenhuma mensagem ou arquivo de mídia será apagado do seu WhatsApp no celular nem dos servidores do WhatsApp.</span>
+              <span className="font-semibold text-emerald-300">{t("Only local copies on this server:")} </span>
+              {t("Media and chat cleanup affects")} <strong>{t("only the local disk")}</strong> {t("of this gateway.")}
+              <span className="text-emerald-100 font-medium"> {t("No messages or media will be deleted from WhatsApp on your phone or from WhatsApp servers.")}</span>
             </div>
           </div>
 
@@ -255,7 +257,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             {/* Card Mídias */}
             <div className="bg-gray-950/70 border border-gray-800/80 rounded-xl p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between text-gray-400 mb-2">
-                <span className="text-xs font-medium">Mídias em Disco</span>
+                <span className="text-xs font-medium">{t("Media on Disk")}</span>
                 <FileAudio className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
@@ -263,7 +265,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                   {summary ? formatBytes(summary.totalMediaBytes) : '...'}
                 </div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  {summary ? `${summary.totalMediaFiles} arquivos salvos` : 'Carregando...'}
+                  {summary ? t('{count} files saved', { count: summary.totalMediaFiles.toLocaleString(locale) }) : t("Loading...")}
                 </div>
               </div>
             </div>
@@ -271,7 +273,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             {/* Card Banco de Dados */}
             <div className="bg-gray-950/70 border border-gray-800/80 rounded-xl p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between text-gray-400 mb-2">
-                <span className="text-xs font-medium">Banco de Dados (SQLite)</span>
+                <span className="text-xs font-medium">{t("Database (SQLite)")}</span>
                 <Database className="w-4 h-4 text-indigo-400" />
               </div>
               <div>
@@ -281,7 +283,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                     : '...'}
                 </div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  {summary ? `${summary.totalMessages.toLocaleString()} mensagens gravadas` : 'Carregando...'}
+                  {summary ? t('{count} messages recorded', { count: summary.totalMessages.toLocaleString(locale) }) : t("Loading...")}
                 </div>
               </div>
             </div>
@@ -289,7 +291,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             {/* Card Conversas */}
             <div className="bg-gray-950/70 border border-gray-800/80 rounded-xl p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between text-gray-400 mb-2">
-                <span className="text-xs font-medium">Conversas Coletadas</span>
+                <span className="text-xs font-medium">{t("Collected Chats")}</span>
                 <Users className="w-4 h-4 text-amber-400" />
               </div>
               <div>
@@ -297,7 +299,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                   {summary ? summary.totalContactsWithData : '...'}
                 </div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
-                  Com histórico ou anexos
+                  {t("With history or attachments")}
                 </div>
               </div>
             </div>
@@ -307,10 +309,10 @@ export const StorageModal: React.FC<StorageModalProps> = ({
           <div className="bg-gradient-to-r from-gray-950 to-gray-900 border border-gray-800 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-gray-200">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>Limpeza Rápida Global</span>
+              <span>{t("Quick Cleanup")}</span>
             </div>
             <p className="text-xs text-gray-400 mb-3">
-              Remova mídias antigas em massa preservando mensagens de texto e transcrições do Whisper.
+              {t("Remove old media in bulk while keeping text messages and Whisper transcriptions.")}
             </p>
 
             <div className="flex flex-wrap gap-2">
@@ -319,7 +321,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 onClick={() =>
                   promptClean(
                     'groups_only',
-                    'Todos os Grupos',
+                    t("All Groups"),
                     'media_only',
                     30,
                     summary?.totalMediaBytes
@@ -328,7 +330,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Limpar mídias de grupos (&gt; 30 dias)</span>
+                <span>{t("Clear group media (> 30 days)")}</span>
               </button>
 
               <button
@@ -336,7 +338,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 onClick={() =>
                   promptClean(
                     'all',
-                    'Todas as Conversas',
+                    t("All Chats"),
                     'media_only',
                     60,
                     summary?.totalMediaBytes
@@ -345,7 +347,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Limpar todas as mídias (&gt; 60 dias)</span>
+                <span>{t("Clear all media (> 60 days)")}</span>
               </button>
 
               <button
@@ -353,7 +355,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 onClick={() =>
                   promptClean(
                     'groups_only',
-                    'Todos os Grupos',
+                    t("All Groups"),
                     'media_only',
                     0,
                     summary?.totalMediaBytes
@@ -362,7 +364,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 border border-rose-800/60 transition flex items-center gap-1.5"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Limpar TODAS as mídias de grupos</span>
+                <span>{t("Clear ALL group media")}</span>
               </button>
             </div>
           </div>
@@ -380,7 +382,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >
-                  Todas ({chats.length})
+                  {t("All (")}{chats.length})
                 </button>
                 <button
                   type="button"
@@ -391,7 +393,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >
-                  Grupos ({chats.filter((c) => c.isGroup).length})
+                  {t("Groups (")}{chats.filter((c) => c.isGroup).length})
                 </button>
                 <button
                   type="button"
@@ -402,7 +404,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >
-                  Contatos ({chats.filter((c) => !c.isGroup).length})
+                  {t("Contacts (")}{chats.filter((c) => !c.isGroup).length})
                 </button>
               </div>
 
@@ -411,7 +413,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Filtrar por nome ou número..."
+                  placeholder={t("Filter by name or number...")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-gray-950 text-xs rounded-xl pl-9 pr-3 py-1.5 text-gray-200 placeholder-gray-500 border border-gray-800 focus:outline-none focus:border-emerald-500 transition"
@@ -425,18 +427,18 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-gray-900/80 text-gray-400 border-b border-gray-800 select-none">
                     <tr>
-                      <th className="py-2.5 px-4 font-medium">Conversa</th>
-                      <th className="py-2.5 px-3 font-medium text-center">Mensagens</th>
-                      <th className="py-2.5 px-3 font-medium text-center">Mídias</th>
-                      <th className="py-2.5 px-4 font-medium">Uso em Disco</th>
-                      <th className="py-2.5 px-4 font-medium text-right">Ações de Limpeza</th>
+                      <th className="py-2.5 px-4 font-medium">{t("Chat")}</th>
+                      <th className="py-2.5 px-3 font-medium text-center">{t("Messages")}</th>
+                      <th className="py-2.5 px-3 font-medium text-center">{t("Media")}</th>
+                      <th className="py-2.5 px-4 font-medium">{t("Disk Usage")}</th>
+                      <th className="py-2.5 px-4 font-medium text-right">{t("Cleanup Actions")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-800/60">
                     {filteredChats.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-8 text-center text-gray-500">
-                          Nenhuma conversa encontrada com os filtros aplicados.
+                          {t("No chats match the selected filters.")}
                         </td>
                       </tr>
                     ) : (
@@ -474,7 +476,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                                     </span>
                                     {chat.isGroup && (
                                       <span className="text-[9px] px-1 rounded bg-indigo-950 text-indigo-400 border border-indigo-800/40">
-                                        Grupo
+                                        {t("Group")}
                                       </span>
                                     )}
                                   </div>
@@ -534,11 +536,11 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                                       chat.mediaCount
                                     )
                                   }
-                                  title="Limpar apenas os arquivos de mídia desta conversa"
+                                  title={t("Clear only the media files for this chat")}
                                   className="px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-amber-300 hover:text-amber-200 border border-gray-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                   <Trash2 className="w-3 h-3 text-amber-400" />
-                                  <span>Mídias</span>
+                                  <span>{t("Media")}</span>
                                 </button>
 
                                 {/* Limpar Tudo (Mensagens + Mídias) */}
@@ -556,11 +558,11 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                                       chat.messageCount
                                     )
                                   }
-                                  title="Excluir histórico de mensagens e mídias desta conversa"
+                                  title={t("Delete message history and media for this chat")}
                                   className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-200 border border-rose-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                                 >
                                   <Trash2 className="w-3 h-3 text-rose-400" />
-                                  <span>Tudo</span>
+                                  <span>{t("Everything")}</span>
                                 </button>
                               </div>
                             </td>
@@ -580,14 +582,14 @@ export const StorageModal: React.FC<StorageModalProps> = ({
           <div className="flex items-center gap-2">
             <Smartphone className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <span>
-              <strong>100% Seguro:</strong> As mensagens e mídias originais no seu celular e no WhatsApp permanecem intactas.
+              <strong>{t("100% Safe:")}</strong> {t("Original messages and media on your phone and in WhatsApp remain intact.")}
             </span>
           </div>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 transition"
           >
-            Fechar
+            {t("Close")}
           </button>
         </div>
       </div>
@@ -602,10 +604,10 @@ export const StorageModal: React.FC<StorageModalProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-100">
-                  Confirmar Limpeza de Armazenamento
+                  {t("Confirm Storage Cleanup")}
                 </h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Esta ação é irreversível e liberará espaço físico neste servidor.
+                  {t("This action is irreversible and will free up disk space on this server.")}
                 </p>
               </div>
             </div>
@@ -614,29 +616,29 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             <div className="bg-emerald-950/40 border border-emerald-800/50 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-200">
               <Smartphone className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-emerald-300">Seu celular permanece intacto: </span>
-                Esta limpeza apaga exclusivamente os arquivos salvos neste servidor. Nada é deletado do seu aplicativo WhatsApp nem da nuvem.
+                <span className="font-semibold text-emerald-300">{t("Your phone remains untouched:")} </span>
+                {t("This cleanup deletes only files saved on this server. Nothing is deleted from your WhatsApp app or the cloud.")}
               </div>
             </div>
 
             <div className="bg-gray-950/80 rounded-xl p-3.5 border border-gray-800 text-xs space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-400">Alvo:</span>
+                <span className="text-gray-400">{t("Target:")}</span>
                 <span className="font-semibold text-gray-200">
                   {confirmDialog.targetTitle}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Tipo de Limpeza:</span>
+                <span className="text-gray-400">{t("Cleanup Type:")}</span>
                 <span className="font-semibold text-amber-300">
                   {confirmDialog.mode === 'media_only'
-                    ? 'Apenas Mídias (preserva textos/transcrições)'
-                    : 'Completa (Mensagens + Mídias + VACUUM)'}
+                    ? t("Media Only (keeps texts/transcriptions)")
+                    : t("Full (Messages + Media + VACUUM)")}
                 </span>
               </div>
               {confirmDialog.estimatedMediaBytes !== undefined && (
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Espaço Estimado:</span>
+                  <span className="text-gray-400">{t("Estimated Space:")}</span>
                   <span className="font-semibold text-emerald-400">
                     ~{formatBytes(confirmDialog.estimatedMediaBytes)}
                   </span>
@@ -647,7 +649,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
             {/* Opção de Corte Temporal */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-gray-300">
-                Critério de corte de data:
+                {t("Date cutoff:")}
               </label>
               <select
                 value={confirmDialog.olderThanDays}
@@ -659,11 +661,11 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 }
                 className="w-full bg-gray-950 text-xs text-gray-200 border border-gray-800 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-500"
               >
-                <option value={0}>Todo o histórico (sem limite de data)</option>
-                <option value={7}>Apenas itens com mais de 7 dias</option>
-                <option value={30}>Apenas itens com mais de 30 dias</option>
-                <option value={60}>Apenas itens com mais de 60 dias</option>
-                <option value={90}>Apenas itens com mais de 90 dias</option>
+                <option value={0}>{t("All history (no date limit)")}</option>
+                <option value={7}>{t("Only items older than 7 days")}</option>
+                <option value={30}>{t("Only items older than 30 days")}</option>
+                <option value={60}>{t("Only items older than 60 days")}</option>
+                <option value={90}>{t("Only items older than 90 days")}</option>
               </select>
             </div>
 
@@ -675,7 +677,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 disabled={isCleaning}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 hover:bg-gray-800 transition"
               >
-                Cancelar
+                {t("Cancel")}
               </button>
               <button
                 type="button"
@@ -688,7 +690,7 @@ export const StorageModal: React.FC<StorageModalProps> = ({
                 } disabled:opacity-50`}
               >
                 {isCleaning && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>{isCleaning ? 'Limpando...' : 'Confirmar e Limpar'}</span>
+                <span>{isCleaning ? t("Cleaning...") : t("Confirm and Clean")}</span>
               </button>
             </div>
           </div>

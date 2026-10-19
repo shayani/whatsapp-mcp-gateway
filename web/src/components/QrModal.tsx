@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n';
 import React, { useState, useEffect } from 'react';
 import { X, QrCode, CheckCircle2, RotateCw } from 'lucide-react';
 import { requestReconnect, type AuthStatus } from '../api';
@@ -15,6 +16,7 @@ export const QrModal: React.FC<QrModalProps> = ({
   onClose,
   onRefreshStatus
 }) => {
+  const { t } = useI18n();
   const [isRequesting, setIsRequesting] = useState(false);
 
   // Polling frequente (2s) enquanto o modal estiver aberto para manter o status e QR Code atualizados
@@ -56,7 +58,7 @@ export const QrModal: React.FC<QrModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
           <div className="flex items-center gap-2 text-white font-semibold text-sm">
             <QrCode className="w-4 h-4 text-emerald-400" />
-            Conexão WhatsApp
+            {t("WhatsApp Connection")}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg">
             <X className="w-5 h-5" />
@@ -68,23 +70,23 @@ export const QrModal: React.FC<QrModalProps> = ({
             <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-semibold text-emerald-400 mb-1">Conectado com Sucesso</h3>
+            <h3 className="text-base font-semibold text-emerald-400 mb-1">{t("Connected Successfully")}</h3>
             <p className="text-xs text-gray-300">
-              Sessão ativa como: <span className="font-semibold text-white">{authStatus.userName || authStatus.userJid}</span>
+              {t("Signed in as:")} <span className="font-semibold text-white">{authStatus.userName || authStatus.userJid}</span>
             </p>
           </div>
         ) : (
           <div>
             <p className="text-xs text-gray-400 mb-4">
-              Abra o WhatsApp no celular &gt; Aparelhos conectados &gt; Conectar aparelho.
+              {t("Open WhatsApp on your phone > Linked devices > Link a device.")}
             </p>
             <div className="bg-white p-3 rounded-xl inline-block mx-auto mb-3 shadow-inner">
               {authStatus.qrCodeDataUrl ? (
-                <img src={authStatus.qrCodeDataUrl} alt="QR Code WhatsApp" className="w-56 h-56 mx-auto" />
+                <img src={authStatus.qrCodeDataUrl} alt={t("WhatsApp QR Code")} className="w-56 h-56 mx-auto" />
               ) : (
                 <div className="w-56 h-56 flex flex-col items-center justify-center text-gray-500 text-xs">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mb-2"></div>
-                  Aguardando geração do QR Code...
+                  {t("Waiting for QR code...")}
                 </div>
               )}
             </div>
@@ -97,12 +99,12 @@ export const QrModal: React.FC<QrModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition disabled:opacity-50"
               >
                 <RotateCw className={`w-3 h-3 ${isRequesting ? 'animate-spin' : ''}`} />
-                <span>{isRequesting ? 'Gerando...' : 'Gerar Novo QR Code'}</span>
+                <span>{isRequesting ? t("Generating...") : t("Generate New QR Code")}</span>
               </button>
             </div>
 
             <p className="text-[11px] text-gray-500 mt-3">
-              O QR Code atualiza dinamicamente a cada 20 segundos.
+              {t("The QR code refreshes automatically every 20 seconds.")}
             </p>
           </div>
         )}
@@ -112,7 +114,7 @@ export const QrModal: React.FC<QrModalProps> = ({
             onClick={onClose}
             className="w-full py-2 bg-gray-800 hover:bg-gray-700 text-xs font-medium text-gray-200 rounded-lg transition"
           >
-            Fechar
+            {t("Close")}
           </button>
         </div>
       </div>

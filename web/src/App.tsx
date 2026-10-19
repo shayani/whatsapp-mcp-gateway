@@ -1,3 +1,4 @@
+import { useI18n } from './i18n';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   MessageSquare,
@@ -31,6 +32,7 @@ import { QrModal } from './components/QrModal';
 import { StorageModal } from './components/StorageModal';
 
 export const App: React.FC = () => {
+  const { t, language, setLanguage } = useI18n();
   const [chats, setChats] = useState<Contact[]>([]);
   const [selectedChat, setSelectedChat] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -195,7 +197,7 @@ export const App: React.FC = () => {
             <h1 className="text-sm font-bold text-gray-100 flex items-center gap-2">
               WhatsApp Gateway
               <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800">
-                MCP Ativo
+                {t("MCP Active")}
               </span>
             </h1>
           </div>
@@ -207,7 +209,7 @@ export const App: React.FC = () => {
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Buscar em todas as mensagens e transcrições de voz (FTS5)..."
+              placeholder={t("Search all messages and voice transcriptions...")}
               value={globalSearchTerm}
               onChange={(e) => setGlobalSearchTerm(e.target.value)}
               className="w-full bg-gray-950 text-xs rounded-xl pl-9 pr-4 py-2 text-gray-200 placeholder-gray-500 border border-gray-800 focus:outline-none focus:border-emerald-500 transition"
@@ -217,6 +219,19 @@ export const App: React.FC = () => {
 
         {/* Ações e Status */}
         <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-gray-300">
+            <span className="sr-only">{t('Language')}</span>
+            <select
+              aria-label={t('Language')}
+              title={language === 'pt-BR' ? 'Português (Brasil)' : 'English'}
+              value={language}
+              onChange={(event) => setLanguage(event.target.value === 'pt-BR' ? 'pt-BR' : 'en')}
+              className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-gray-100 text-base leading-none"
+            >
+              <option value="en" lang="en" aria-label="English">🇺🇸</option>
+              <option value="pt-BR" lang="pt-BR" aria-label="Português (Brasil)">🇧🇷</option>
+            </select>
+          </label>
           {/* Status Conexão */}
           <button
             onClick={() => setIsQrOpen(true)}
@@ -231,7 +246,7 @@ export const App: React.FC = () => {
             ) : (
               <Radio className="w-3.5 h-3.5" />
             )}
-            <span>{authStatus.status === 'connected' ? 'WhatsApp Online' : 'Escanear QR'}</span>
+            <span>{authStatus.status === 'connected' ? t("WhatsApp Online") : t("Scan QR")}</span>
           </button>
 
           {/* Gerenciamento de Armazenamento */}
@@ -240,7 +255,7 @@ export const App: React.FC = () => {
               setStorageInitialSearch('');
               setIsStorageOpen(true);
             }}
-            title="Gerenciamento de Armazenamento e Limpeza"
+            title={t("Storage management and cleanup")}
             className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 transition"
           >
             <HardDrive className="w-4 h-4" />
@@ -249,7 +264,7 @@ export const App: React.FC = () => {
           {/* Configurações (Groq API Key) */}
           <button
             onClick={() => setIsSettingsOpen(true)}
-            title="Configurar Whisper (Groq)"
+            title={t("Configure Whisper (Groq)")}
             className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 transition"
           >
             <SettingsIcon className="w-4 h-4" />

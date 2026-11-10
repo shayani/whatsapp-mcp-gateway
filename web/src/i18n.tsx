@@ -11,7 +11,7 @@ export function normalizeLanguage(value: unknown): Language {
 }
 
 export function translate(language: Language, key: TranslationKey, values: Record<string, string | number> = {}): string {
-  const template = language === 'pt-BR' ? ptBR[key] : key;
+  const template = (language === 'pt-BR' && ptBR[key]) ? ptBR[key] : (key || '');
   return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     values[name] === undefined ? match : String(values[name]));
 }

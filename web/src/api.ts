@@ -7,6 +7,7 @@ export interface Contact {
   allow_send?: number;
   unread_count: number;
   last_message_timestamp: number;
+  linked_phone?: string | null;
 }
 
 export interface Attachment {

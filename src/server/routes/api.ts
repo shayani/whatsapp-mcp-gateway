@@ -65,6 +65,18 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // 2. Alternar status de coleta (is_ignored)
+  fastify.post("/api/ui/chats/fetch-history", async (req, reply) => {
+    const bodySchema = z.object({ jid: z.string(), count: z.number().min(1).max(500).optional() });
+    const { jid, count } = bodySchema.parse(req.body);
+    try {
+      const res = await whatsappService.fetchHistory(jid, count ?? 100);
+      return { success: true, ...res };
+    } catch (e: any) {
+      reply.code(400);
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
   fastify.post('/api/ui/chats/toggle-ignore', async (req) => {
     const bodySchema = z.object({
       jid: z.string(),
@@ -121,6 +133,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
 
     if (jid.endsWith('@g.us')) {
       whatsappService.syncGroupMetadata(jid).catch(() => {});
+    } else if (jid.endsWith('@newsletter')) {
+      whatsappService.syncNewsletterMetadata(jid).catch(() => {});
     }
 
     const messages = listChatMessages(jid, limit, before);

@@ -74,6 +74,7 @@ function initSchema(db: Database.Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_chat_timestamp ON messages(chat_jid, timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC);
 
     -- Anexos e Mídias
     CREATE TABLE IF NOT EXISTS attachments (
@@ -108,6 +109,99 @@ function initSchema(db: Database.Database): void {
     db.exec('ALTER TABLE contacts ADD COLUMN allow_send BOOLEAN DEFAULT 0;');
   } catch {
     // Coluna já existe
+  }
+
+  // Sincronização entre JIDs vinculados (ex: LID <-> Telefone)
+  try {
+    // 0. Garante que qualquer JID em jid_links exista na tabela contacts
+    db.prepare(`
+      INSERT OR IGNORE INTO contacts (jid, is_group)
+      SELECT DISTINCT jl.jid1, CASE WHEN jl.jid1 LIKE '%@g.us' THEN 1 ELSE 0 END
+      FROM jid_links jl
+      WHERE NOT EXISTS (SELECT 1 FROM contacts c WHERE c.jid = jl.jid1)
+    `).run();
+
+    db.prepare(`
+      INSERT OR IGNORE INTO contacts (jid, is_group)
+      SELECT DISTINCT jl.jid2, CASE WHEN jl.jid2 LIKE '%@g.us' THEN 1 ELSE 0 END
+      FROM jid_links jl
+      WHERE NOT EXISTS (SELECT 1 FROM contacts c WHERE c.jid = jl.jid2)
+    `).run();
+
+    // 1. last_message_timestamp: garante que ambos os JIDs tenham o timestamp mais recente
+    db.prepare(`
+      UPDATE contacts
+      SET last_message_timestamp = (
+        SELECT MAX(c2.last_message_timestamp)
+        FROM jid_links jl
+        JOIN contacts c2 ON c2.jid = jl.jid2
+        WHERE jl.jid1 = contacts.jid
+      )
+      WHERE EXISTS (
+        SELECT 1
+        FROM jid_links jl
+        JOIN contacts c2 ON c2.jid = jl.jid2
+        WHERE jl.jid1 = contacts.jid AND c2.last_message_timestamp > contacts.last_message_timestamp
+      )
+    `).run();
+
+    // 2. Nomes e notify_names: propaga nomes faltantes entre JIDs vinculados
+    db.prepare(`
+      UPDATE contacts
+      SET
+        name = COALESCE(name, (
+          SELECT c2.name
+          FROM jid_links jl
+          JOIN contacts c2 ON c2.jid = jl.jid2
+          WHERE jl.jid1 = contacts.jid AND c2.name IS NOT NULL
+          LIMIT 1
+        )),
+        notify_name = COALESCE(notify_name, (
+          SELECT c2.notify_name
+          FROM jid_links jl
+          JOIN contacts c2 ON c2.jid = jl.jid2
+          WHERE jl.jid1 = contacts.jid AND c2.notify_name IS NOT NULL
+          LIMIT 1
+        ))
+      WHERE EXISTS (
+        SELECT 1
+        FROM jid_links jl
+        JOIN contacts c2 ON c2.jid = jl.jid2
+        WHERE jl.jid1 = contacts.jid AND (
+          (contacts.name IS NULL AND c2.name IS NOT NULL) OR
+          (contacts.notify_name IS NULL AND c2.notify_name IS NOT NULL)
+        )
+      )
+    `).run();
+
+    // 3. Flags allow_send e is_ignored entre vinculados
+    db.prepare(`
+      UPDATE contacts
+      SET
+        allow_send = (
+          SELECT MAX(c2.allow_send)
+          FROM jid_links jl
+          JOIN contacts c2 ON c2.jid = jl.jid2
+          WHERE jl.jid1 = contacts.jid
+        ),
+        is_ignored = (
+          SELECT MAX(c2.is_ignored)
+          FROM jid_links jl
+          JOIN contacts c2 ON c2.jid = jl.jid2
+          WHERE jl.jid1 = contacts.jid
+        )
+      WHERE EXISTS (
+        SELECT 1
+        FROM jid_links jl
+        JOIN contacts c2 ON c2.jid = jl.jid2
+        WHERE jl.jid1 = contacts.jid AND (
+          c2.allow_send > contacts.allow_send OR
+          c2.is_ignored > contacts.is_ignored
+        )
+      )
+    `).run();
+  } catch (err) {
+    console.warn('[DB] Erro ao sincronizar JIDs vinculados:', err);
   }
 }
 

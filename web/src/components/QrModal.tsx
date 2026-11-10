@@ -53,8 +53,8 @@ export const QrModal: React.FC<QrModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-sm w-full p-4 sm:p-6 shadow-2xl text-center">
         <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-4">
           <div className="flex items-center gap-2 text-white font-semibold text-sm">
             <QrCode className="w-4 h-4 text-emerald-400" />

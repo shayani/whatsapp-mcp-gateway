@@ -21,6 +21,7 @@ import QRCode from 'qrcode';
 import { config, loadYamlConfig } from '../config.js';
 import { upsertContact, getContact, linkJids, isSendAllowedForContact } from '../db/contacts.js';
 import { insertMessage } from '../db/messages.js';
+import { getDatabase } from '../db/index.js';
 import { messageFilter } from './filter.js';
 import { handleMediaDownload } from './media.js';
 
@@ -165,6 +166,8 @@ class WhatsAppService {
           this.state.userName = this.sock?.user?.name || null;
 
           console.log(`✅ [WhatsApp] Conectado com sucesso como: ${this.state.userName || this.state.userJid}`);
+          this.syncAllGroupsAndCommunities().catch(() => {});
+          this.syncAllNewsletters().catch(() => {});
         } else if (connection === 'connecting') {
           this.state.status = 'connecting';
         }
@@ -268,6 +271,9 @@ class WhatsAppService {
                 ? c.conversationTimestamp
                 : (c.conversationTimestamp as any)?.low || 0
             });
+            if (c.id.endsWith('@newsletter') && !c.name) {
+              this.syncNewsletterMetadata(c.id).catch(() => {});
+            }
           }
         }
 
@@ -300,6 +306,9 @@ class WhatsAppService {
             unread_count: c.unreadCount || 0,
             is_group: c.id.endsWith('@g.us') ? 1 : 0
           });
+          if (c.id.endsWith('@newsletter') && !c.name) {
+            this.syncNewsletterMetadata(c.id).catch(() => {});
+          }
         }
       });
 
@@ -347,6 +356,13 @@ class WhatsAppService {
     if (!this.sock || !groupJid.endsWith('@g.us')) return;
     try {
       const metadata = await this.sock.groupMetadata(groupJid);
+      if (metadata?.subject) {
+        upsertContact({
+          jid: groupJid,
+          name: metadata.subject,
+          is_group: 1
+        });
+      }
       if (metadata?.participants) {
         for (const p of metadata.participants) {
           const participantJid = p.jid ? jidNormalizedUser(p.jid) : (p.id ? jidNormalizedUser(p.id) : null);
@@ -381,6 +397,88 @@ class WhatsAppService {
       }
     } catch (e) {
       console.warn(`[WhatsApp] Não foi possível carregar metadados do grupo ${groupJid}:`, e);
+    }
+  }
+
+  public async syncNewsletterMetadata(newsletterJid: string): Promise<void> {
+    if (!this.sock || !newsletterJid.endsWith('@newsletter')) return;
+    try {
+      const metadata: any = await (this.sock as any).newsletterMetadata('jid', newsletterJid);
+      const name = metadata?.thread_metadata?.name?.text || metadata?.name || null;
+      if (name) {
+        upsertContact({
+          jid: newsletterJid,
+          name: name,
+          is_group: 0
+        });
+        return;
+      }
+    } catch (e) {
+      console.warn(`[WhatsApp] Não foi possível carregar metadados do canal ${newsletterJid} via Baileys:`, e);
+    }
+
+    // Fallback: tenta recuperar o título a partir das mensagens já gravadas no banco
+    const existing = getContact(newsletterJid);
+    if (!existing?.name) {
+      try {
+        const db = getDatabase();
+        const msgRow = db.prepare(`SELECT raw_json FROM messages WHERE chat_jid = ? AND raw_json LIKE '%"title":%' LIMIT 1`).get(newsletterJid) as { raw_json?: string } | undefined;
+        if (msgRow?.raw_json) {
+          const parsed = JSON.parse(msgRow.raw_json);
+          const title = parsed?.extendedTextMessage?.title || parsed?.title;
+          if (title && typeof title === 'string') {
+            upsertContact({ jid: newsletterJid, name: title, is_group: 0 });
+          }
+        }
+      } catch {}
+    }
+  }
+
+  public async syncAllNewsletters(): Promise<void> {
+    if (!this.sock) return;
+    const db = getDatabase();
+    const rows = db.prepare(`SELECT jid FROM contacts WHERE jid LIKE '%@newsletter'`).all() as { jid: string }[];
+    for (const r of rows) {
+      await this.syncNewsletterMetadata(r.jid);
+    }
+  }
+
+  public async syncAllGroupsAndCommunities(): Promise<void> {
+    if (!this.sock) return;
+    try {
+      const participating = await (this.sock as any).groupFetchAllParticipating();
+      if (participating) {
+        for (const [id, metadata] of Object.entries(participating as Record<string, any>)) {
+          if (metadata?.subject) {
+            upsertContact({
+              jid: id,
+              name: metadata.subject,
+              is_group: 1
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[WhatsApp] Erro ao sincronizar grupos participantes:', e);
+    }
+
+    try {
+      if (typeof (this.sock as any).communityFetchAllParticipating === 'function') {
+        const communities = await (this.sock as any).communityFetchAllParticipating();
+        if (communities) {
+          for (const [id, metadata] of Object.entries(communities as Record<string, any>)) {
+            if (metadata?.subject) {
+              upsertContact({
+                jid: id,
+                name: metadata.subject,
+                is_group: 1
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignora se não houver comunidades ou método indisponível
     }
   }
 
@@ -449,6 +547,10 @@ class WhatsAppService {
       is_group: isGroup ? 1 : 0
     });
 
+    if (chatJid.endsWith('@newsletter') && !getContact(chatJid)?.name) {
+      this.syncNewsletterMetadata(chatJid).catch(() => {});
+    }
+
     // Se for mensagem de grupo e não for enviada por mim, registra/atualiza o participante
     if (isGroup && !fromMe && senderJid && senderJid !== chatJid) {
       upsertContact({
@@ -497,6 +599,21 @@ class WhatsAppService {
   }
 
   private recentSends = new Map<string, number[]>();
+
+  public async fetchHistory(chatJid: string, count = 200): Promise<{ requested: boolean; anchor: string; anchorTs: number }> {
+    if (!this.sock || this.state.status !== 'connected') {
+      throw new Error('WhatsApp nao esta conectado no momento.');
+    }
+    const db = getDatabase();
+    const row = db.prepare('SELECT id, timestamp FROM messages WHERE chat_jid = ? ORDER BY timestamp DESC LIMIT 1')
+      .get(chatJid) as { id: string; timestamp: number } | undefined;
+    if (!row) {
+      throw new Error('Sem mensagem ancora para esse chat.');
+    }
+    const key = { remoteJid: chatJid, fromMe: false, id: row.id };
+    await this.sock.fetchMessageHistory(count, key as any, row.timestamp as any);
+    return { requested: true, anchor: row.id, anchorTs: row.timestamp };
+  }
 
   public async sendMessage(
     recipient: string,

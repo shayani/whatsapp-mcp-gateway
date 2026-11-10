@@ -49,10 +49,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-        <div className="flex items-center justify-between pb-4 border-b border-gray-800">
-          <div className="flex items-center gap-2 text-white font-semibold text-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl">
+        <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-gray-800">
+          <div className="flex items-center gap-2 text-white font-semibold text-base sm:text-lg">
             <Key className="w-5 h-5 text-emerald-400" />
             {t("Whisper (Groq) Settings")}
           </div>

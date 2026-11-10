@@ -10,7 +10,8 @@ import {
   Download,
   X,
   Bot,
-  HardDrive
+  HardDrive,
+  ArrowLeft
 } from 'lucide-react';
 import { getAttachmentUrl, type Contact, type Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
@@ -22,6 +23,7 @@ interface MessageViewProps {
   onToggleIgnore: (jid: string, newIgnoredState: boolean) => void;
   onToggleAllowSend: (jid: string, newAllowSendState: boolean) => void;
   onOpenStorage?: (jid: string) => void;
+  onBack?: () => void;
 }
 
 export const MessageView: React.FC<MessageViewProps> = ({
@@ -30,7 +32,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
   isLoading,
   onToggleIgnore,
   onToggleAllowSend,
-  onOpenStorage
+  onOpenStorage,
+  onBack
 }) => {
   const { t, locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -113,7 +116,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
     if (senderName && senderName.trim().length > 0) {
       return senderName;
     }
-    if (!senderJid || senderJid === chatJid) {
+    if (!senderJid || senderJid === chatJid || senderJid.endsWith('@lid')) {
       return null;
     }
     const raw = senderJid.split('@')[0];
@@ -137,52 +140,73 @@ export const MessageView: React.FC<MessageViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-950 relative">
       {/* Cabeçalho da Conversa */}
-      <header className="px-6 py-3.5 border-b border-gray-800 bg-gray-900/60 flex items-center justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
-            {contactInfo.title}
-            {chat.is_group ? (
-              <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-indigo-900/50 text-indigo-300 border border-indigo-700/50">
-                {t("Group")}
-              </span>
+      <header className="px-3 sm:px-6 py-2.5 sm:py-3.5 border-b border-gray-800 bg-gray-900/60 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
+          {/* Botão Voltar no Mobile */}
+          {onBack && (
+            <button
+              type="button"
+              onClick={onBack}
+              className="md:hidden p-1.5 -ml-1 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition flex-shrink-0"
+              title={t("Back to chats")}
+              aria-label={t("Back to chats")}
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm sm:text-base font-semibold text-gray-100 flex items-center gap-1.5 sm:gap-2">
+              <span className="truncate">{contactInfo.title}</span>
+              {contactInfo.isNewsletter ? (
+                <span className="text-[10px] sm:text-[11px] font-normal px-1.5 sm:px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300 border border-amber-700/50 flex-shrink-0">
+                  {t("Channel")}
+                </span>
+              ) : chat.is_group ? (
+                <span className="text-[10px] sm:text-[11px] font-normal px-1.5 sm:px-2 py-0.5 rounded-full bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 flex-shrink-0">
+                  {t("Group")}
+                </span>
+              ) : null}
+            </h2>
+            {contactInfo.subtitle ? (
+              <p className="text-xs text-gray-400 mt-0.5 truncate">{contactInfo.subtitle}</p>
             ) : null}
-          </h2>
-          {contactInfo.subtitle ? (
-            <p className="text-xs text-gray-400 mt-0.5">{contactInfo.subtitle}</p>
-          ) : null}
+          </div>
         </div>
 
         {/* Botões de Ação no Topo da Conversa: Armazenamento, Envio pelo Agente e Coleta */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 flex-shrink-0">
           {/* Botão de Armazenamento da Conversa */}
           {onOpenStorage && (
             <button
               type="button"
               onClick={() => onOpenStorage(chat.jid)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-700/80 bg-gray-900/90 text-gray-300 hover:text-white hover:border-gray-500 transition shadow-sm"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium border border-gray-700/80 bg-gray-900/90 text-gray-300 hover:text-white hover:border-gray-500 transition shadow-sm"
               title={t("Manage and clean up storage for this chat")}
             >
-              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{t("Storage")}</span>
+              <HardDrive className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span className="hidden sm:inline">{t("Storage")}</span>
             </button>
           )}
 
-          {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (apenas conversas privadas) */}
-          {!chat.is_group && (
+          {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (apenas conversas privadas e não canais) */}
+          {!chat.is_group && !contactInfo.isNewsletter && (
             <button
               type="button"
               onClick={() => onToggleAllowSend(chat.jid, !Boolean(chat.allow_send))}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
                 chat.allow_send
                   ? 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
                   : 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
               }`}
               title={chat.allow_send ? t("Agent sending enabled for this contact") : t("Agent sending blocked for this contact")}
             >
-              <span className={`w-2 h-2 rounded-full ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
-              <span>{chat.allow_send ? t("Agent sending: Enabled") : t("Agent sending: Blocked")}</span>
-              <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${chat.allow_send ? 'bg-amber-500 justify-end' : 'bg-gray-700 justify-start'}`}>
-                <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
+              <span className="hidden sm:inline">
+                {chat.allow_send ? t("Agent sending: Enabled") : t("Agent sending: Blocked")}
+              </span>
+              <span className={`w-6 sm:w-7 h-3.5 sm:h-4 flex items-center rounded-full p-0.5 transition ${chat.allow_send ? 'bg-amber-500 justify-end' : 'bg-gray-700 justify-start'}`}>
+                <span className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-white shadow-sm" />
               </span>
             </button>
           )}
@@ -191,23 +215,26 @@ export const MessageView: React.FC<MessageViewProps> = ({
           <button
             type="button"
             onClick={() => onToggleIgnore(chat.jid, !isIgnored)}
-            className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
+            className={`inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs font-medium border transition shadow-sm ${
               isIgnored
                 ? 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
                 : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/60'
             }`}
+            title={isIgnored ? t("Collection paused") : t("Collection active")}
           >
-            <span className={`w-2 h-2 rounded-full ${isIgnored ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
-            <span>{isIgnored ? t("Collection Paused") : t("Collection Active")}</span>
-            <span className={`w-7 h-4 flex items-center rounded-full p-0.5 transition ${isIgnored ? 'bg-gray-700 justify-start' : 'bg-emerald-500 justify-end'}`}>
-              <span className="w-3 h-3 rounded-full bg-white shadow-sm" />
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isIgnored ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'}`} />
+            <span className="hidden sm:inline">
+              {isIgnored ? t("Collection Paused") : t("Collection Active")}
+            </span>
+            <span className={`w-6 sm:w-7 h-3.5 sm:h-4 flex items-center rounded-full p-0.5 transition ${isIgnored ? 'bg-gray-700 justify-start' : 'bg-emerald-500 justify-end'}`}>
+              <span className="w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full bg-white shadow-sm" />
             </span>
           </button>
         </div>
       </header>
 
       {/* Lista de Mensagens */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
         {isLoading ? (
           <div className="flex justify-center items-center h-32 text-gray-500 text-sm">
             {t("Loading messages...")}
@@ -240,7 +267,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                 className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-2xl p-4 shadow-sm ${
+                  className={`max-w-[88%] sm:max-w-xl md:max-w-2xl rounded-2xl p-3 sm:p-4 shadow-sm ${
                     isMe
                       ? 'bg-emerald-950/60 border border-emerald-800/40 text-emerald-50'
                       : 'bg-gray-900 border border-gray-800 text-gray-100'
@@ -299,7 +326,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                         return (
                           <div
                             key={att.id}
-                            className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 max-w-sm cursor-pointer shadow-sm"
+                            className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 max-w-full sm:max-w-sm cursor-pointer shadow-sm"
                             onClick={() => setSelectedImage({
                               url: getAttachmentUrl(att.id),
                               fileName: att.file_name || t("Image"),
@@ -415,7 +442,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
                           }
 
                           return (
-                            <div key={att.id} className="overflow-hidden rounded-xl border border-gray-800 bg-black/60 max-w-sm my-1.5">
+                            <div key={att.id} className="overflow-hidden rounded-xl border border-gray-800 bg-black/60 max-w-full sm:max-w-sm my-1.5">
                               <video
                                 controls
                                 preload="metadata"
@@ -478,15 +505,15 @@ export const MessageView: React.FC<MessageViewProps> = ({
       {/* Modal / Lightbox de Imagem */}
       {selectedImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between p-4"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex flex-col justify-between p-2 sm:p-4"
           onClick={() => setSelectedImage(null)}
         >
           {/* Barra Superior */}
           <div
-            className="flex items-center justify-between px-4 py-2 bg-gray-900/80 rounded-xl border border-gray-800 backdrop-blur-sm text-gray-200 shadow-lg"
+            className="flex items-center justify-between px-3 sm:px-4 py-2 bg-gray-900/80 rounded-xl border border-gray-800 backdrop-blur-sm text-gray-200 shadow-lg gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               <ImageIcon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <div className="truncate">
                 <p className="text-xs font-semibold text-gray-100 truncate">
@@ -500,13 +527,13 @@ export const MessageView: React.FC<MessageViewProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <a
                 href={selectedImage.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={t("Open original image in a new tab")}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
               >
                 <ExternalLink className="w-4 h-4" />
               </a>
@@ -514,14 +541,14 @@ export const MessageView: React.FC<MessageViewProps> = ({
                 href={selectedImage.url}
                 download={selectedImage.fileName}
                 title={t("Download image")}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition"
               >
                 <Download className="w-4 h-4" />
               </a>
               <button
                 onClick={() => setSelectedImage(null)}
                 title={t("Close (Esc)")}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 transition ml-2"
+                className="p-1.5 sm:p-2 rounded-lg bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 transition ml-1"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -533,7 +560,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
             <img
               src={selectedImage.url}
               alt={selectedImage.fileName}
-              className="max-h-[82vh] max-w-[92vw] object-contain rounded-lg shadow-2xl select-none"
+              className="max-h-[82vh] max-w-[95vw] sm:max-w-[92vw] object-contain rounded-lg shadow-2xl select-none"
               onClick={(e) => e.stopPropagation()}
             />
           </div>
@@ -541,7 +568,7 @@ export const MessageView: React.FC<MessageViewProps> = ({
           {/* Legenda inferior se houver */}
           {selectedImage.caption ? (
             <div
-              className="mx-auto max-w-xl text-center px-4 py-2 bg-gray-900/90 rounded-xl border border-gray-800 text-xs text-gray-200 backdrop-blur-sm shadow"
+              className="mx-auto max-w-xl text-center px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-900/90 rounded-xl border border-gray-800 text-xs text-gray-200 backdrop-blur-sm shadow truncate"
               onClick={(e) => e.stopPropagation()}
             >
               {selectedImage.caption}

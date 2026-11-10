@@ -59,7 +59,10 @@ export function insertMessage(msg: Message): void {
       insertFtsStmt.run(msg.id, msg.chat_jid, msg.content);
     }
 
-    updateContactStmt.run(msg.timestamp, msg.chat_jid);
+    const linkedJids = getLinkedJids(msg.chat_jid);
+    for (const jid of linkedJids) {
+      updateContactStmt.run(msg.timestamp, jid);
+    }
   });
 
   tx();
@@ -68,7 +71,7 @@ export function insertMessage(msg: Message): void {
 export function getMessage(id: string): MessageWithAttachments | undefined {
   const db = getDatabase();
   const query = `
-    SELECT 
+    SELECT
       m.*,
       CASE
         WHEN m.sender_jid = m.chat_jid THEN NULL
@@ -93,14 +96,16 @@ export function getMessage(id: string): MessageWithAttachments | undefined {
 export function listChatMessages(
   chatJid: string,
   limit = 50,
-  beforeTimestamp?: number
+  beforeTimestamp?: number,
+  sinceTimestamp?: number,
+  order: 'asc' | 'desc' = 'asc'
 ): MessageWithAttachments[] {
   const db = getDatabase();
 
   const linked = getLinkedJids(chatJid);
   const placeholders = linked.map(() => '?').join(', ');
   let query = `
-    SELECT 
+    SELECT
       m.*,
       CASE
         WHEN m.sender_jid = m.chat_jid THEN NULL
@@ -120,18 +125,229 @@ export function listChatMessages(
     params.push(beforeTimestamp);
   }
 
+  if (sinceTimestamp) {
+    query += ' AND m.timestamp >= ?';
+    params.push(sinceTimestamp);
+  }
+
   query += ' ORDER BY m.timestamp DESC LIMIT ?';
   params.push(limit);
 
   const rows = db.prepare(query).all(...params) as Message[];
 
-  // Inverte para retornar em ordem cronológica ascendente
-  const messagesChronological = rows.reverse();
+  // Se order for 'asc', inverte para retornar em ordem cronológica ascendente
+  const resultRows = order === 'asc' ? rows.reverse() : rows;
 
-  return messagesChronological.map((m) => ({
+  return resultRows.map((m) => ({
     ...m,
     attachments: getAttachmentsByMessageId(m.id)
   }));
+}
+
+/**
+ * Retorna os limites [start, end) em segundos UNIX para um dia civil (YYYY-MM-DD)
+ * em um determinado fuso horário IANA (padrão: America/Recife).
+ * Trata variações de DST de forma precisa via Intl.DateTimeFormat.
+ */
+export function getDayBoundsInTimezone(dateStr: string, timeZone = 'America/Recife'): { start: number; end: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) {
+    throw new Error(`Formato de data inválido: "${dateStr}". Use YYYY-MM-DD.`);
+  }
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+
+  const checkDate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    checkDate.getUTCFullYear() !== year ||
+    checkDate.getUTCMonth() !== month - 1 ||
+    checkDate.getUTCDate() !== day
+  ) {
+    throw new Error(`Data inexistente no calendário: "${dateStr}".`);
+  }
+
+  function getUtcEpoch(y: number, m: number, d: number, h = 0, min = 0, s = 0): number {
+    const utcGuess = Date.UTC(y, m - 1, d, h, min, s);
+    let dtf: Intl.DateTimeFormat;
+    try {
+      dtf = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23'
+      });
+    } catch {
+      throw new Error(`Fuso horário inválido: "${timeZone}". Forneça um identificador IANA válido (ex: "America/Recife").`);
+    }
+
+    const parts = dtf.formatToParts(new Date(utcGuess));
+    const p: Record<string, number> = {};
+    for (const part of parts) {
+      if (part.type !== 'literal') {
+        p[part.type] = parseInt(part.value, 10);
+      }
+    }
+    const localMsFromGuess = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+    const offsetMs = localMsFromGuess - utcGuess;
+
+    let resolvedUtcMs = Date.UTC(y, m - 1, d, h, min, s) - offsetMs;
+    const checkParts = dtf.formatToParts(new Date(resolvedUtcMs));
+    const cp: Record<string, number> = {};
+    for (const part of checkParts) {
+      if (part.type !== 'literal') {
+        cp[part.type] = parseInt(part.value, 10);
+      }
+    }
+    const checkLocalMs = Date.UTC(cp.year, cp.month - 1, cp.day, cp.hour, cp.minute, cp.second);
+    const checkOffsetMs = checkLocalMs - resolvedUtcMs;
+    if (checkOffsetMs !== offsetMs) {
+      resolvedUtcMs = Date.UTC(y, m - 1, d, h, min, s) - checkOffsetMs;
+    }
+
+    return Math.floor(resolvedUtcMs / 1000);
+  }
+
+  const start = getUtcEpoch(year, month, day, 0, 0, 0);
+  const nextDate = new Date(Date.UTC(year, month - 1, day + 1));
+  const end = getUtcEpoch(nextDate.getUTCFullYear(), nextDate.getUTCMonth() + 1, nextDate.getUTCDate(), 0, 0, 0);
+  return { start, end };
+}
+
+export interface ListMessagesOptions {
+  chatJid?: string;
+  date?: string; // Formato YYYY-MM-DD no fuso horário configurado (padrão: America/Recife)
+  timezone?: string; // Fuso horário IANA (padrão: America/Recife)
+  sinceTimestamp?: number;
+  untilTimestamp?: number;
+  incomingOnly?: boolean;
+  limit?: number; // 0 para sem limite, > 0 para quantidade específica (padrão: 50)
+  offset?: number;
+  order?: 'asc' | 'desc';
+}
+
+export interface MessageListItem extends MessageWithAttachments {
+  chat_name: string;
+}
+
+export interface ListMessagesResult {
+  messages: MessageListItem[];
+  total: number;
+  returned: number;
+  has_more: boolean;
+  next_offset: number | null;
+  info?: string;
+}
+
+export function listMessages(options: ListMessagesOptions = {}): ListMessagesResult {
+  const db = getDatabase();
+  const {
+    chatJid,
+    date,
+    timezone = 'America/Recife',
+    sinceTimestamp,
+    untilTimestamp,
+    incomingOnly = false,
+    limit = 50,
+    offset = 0,
+    order = 'desc'
+  } = options;
+
+  const whereClauses: string[] = [];
+  const whereParams: (string | number)[] = [];
+
+  if (chatJid) {
+    const linked = getLinkedJids(chatJid);
+    const placeholders = linked.map(() => '?').join(', ');
+    whereClauses.push(`m.chat_jid IN (${placeholders})`);
+    whereParams.push(...linked);
+  }
+
+  if (date) {
+    const { start, end } = getDayBoundsInTimezone(date, timezone);
+    whereClauses.push('m.timestamp >= ?');
+    whereParams.push(start);
+    whereClauses.push('m.timestamp < ?');
+    whereParams.push(end);
+  }
+
+  if (sinceTimestamp !== undefined) {
+    whereClauses.push('m.timestamp >= ?');
+    whereParams.push(sinceTimestamp);
+  }
+
+  if (untilTimestamp !== undefined) {
+    whereClauses.push('m.timestamp <= ?');
+    whereParams.push(untilTimestamp);
+  }
+
+  if (incomingOnly) {
+    whereClauses.push('m.from_me = 0');
+  }
+
+  const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+
+  // 1. Contagem total de mensagens correspondentes aos filtros
+  const countSql = `SELECT COUNT(*) as total FROM messages m${whereSql}`;
+  const countRow = db.prepare(countSql).get(...whereParams) as { total: number } | undefined;
+  const total = countRow ? countRow.total : 0;
+
+  // 2. Consulta dos dados paginados (limit: 0 significa sem limite)
+  const isUnlimited = limit === 0;
+  const safeLimit = isUnlimited ? -1 : Math.max(1, limit);
+  const safeOffset = Math.max(0, offset);
+  const sortDirection = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+  const selectSql = `
+    SELECT
+      m.*,
+      COALESCE(c.name, c.notify_name, m.chat_jid) as chat_name,
+      CASE
+        WHEN m.sender_jid = m.chat_jid THEN NULL
+        ELSE COALESCE(
+          (SELECT COALESCE(sc.name, sc.notify_name) FROM contacts sc WHERE sc.jid = m.sender_jid LIMIT 1),
+          (SELECT COALESCE(cl.name, cl.notify_name) FROM jid_links jl JOIN contacts cl ON cl.jid = jl.jid2 WHERE jl.jid1 = m.sender_jid AND (cl.name IS NOT NULL OR cl.notify_name IS NOT NULL) LIMIT 1),
+          NULL
+        )
+      END AS sender_name
+    FROM messages m
+    LEFT JOIN contacts c ON c.jid = m.chat_jid
+    ${whereSql}
+    ORDER BY m.timestamp ${sortDirection}, m.id ${sortDirection}
+    LIMIT ? OFFSET ?
+  `;
+
+  const rows = db.prepare(selectSql).all(...whereParams, safeLimit, safeOffset) as (Message & { chat_name: string })[];
+
+  const messages: MessageListItem[] = rows.map((m) => ({
+    ...m,
+    chat_name: m.chat_name || m.chat_jid,
+    attachments: getAttachmentsByMessageId(m.id)
+  }));
+
+  const returned = messages.length;
+  const has_more = !isUnlimited && safeOffset + returned < total;
+  const next_offset = has_more ? safeOffset + returned : null;
+
+  let info: string | undefined;
+  if (has_more && next_offset !== null) {
+    const remaining = total - (safeOffset + returned);
+    const pageSize = limit > 0 ? limit : 50;
+    info = `Existem mais mensagens que não foram retornadas nesta chamada (${remaining} restantes). Para obter as próximas mensagens, passe offset: ${next_offset} (com limit: ${pageSize}). Para retornar todas as mensagens sem paginação de uma só vez, passe limit: 0.`;
+  }
+
+  return {
+    messages,
+    total,
+    returned,
+    has_more,
+    next_offset,
+    ...(info ? { info } : {})
+  };
 }
 
 export interface SearchResultItem {
@@ -187,8 +403,10 @@ export function searchMessages(
   const params: (string | number)[] = [ftsQuery];
 
   if (chatJid) {
-    sql += ' AND f.chat_jid = ?';
-    params.push(chatJid);
+    const linked = getLinkedJids(chatJid);
+    const placeholders = linked.map(() => '?').join(', ');
+    sql += ` AND f.chat_jid IN (${placeholders})`;
+    params.push(...linked);
   }
 
   sql += ' ORDER BY m.timestamp DESC LIMIT ? OFFSET ?';
@@ -199,6 +417,17 @@ export function searchMessages(
   } catch (err) {
     // Fallback para LIKE case-insensitive caso a sintaxe FTS falhe em palavras pontuais
     console.warn('Fallback para LIKE na busca:', err);
+    const likeTerm = `%${sanitized}%`;
+    let chatClause = '';
+    const likeParams: (string | number)[] = [likeTerm, likeTerm];
+    if (chatJid) {
+      const linked = getLinkedJids(chatJid);
+      const placeholders = linked.map(() => '?').join(', ');
+      chatClause = `AND m.chat_jid IN (${placeholders})`;
+      likeParams.push(...linked);
+    }
+    likeParams.push(limit, offset);
+
     const likeSql = `
       SELECT
         m.id as message_id,
@@ -220,14 +449,10 @@ export function searchMessages(
       FROM messages m
       LEFT JOIN attachments a ON a.message_id = m.id
       WHERE (m.content LIKE ? OR a.transcription_text LIKE ?)
-      ${chatJid ? 'AND m.chat_jid = ?' : ''}
+      ${chatClause}
       ORDER BY m.timestamp DESC
       LIMIT ? OFFSET ?
     `;
-    const likeTerm = `%${sanitized}%`;
-    const likeParams = [likeTerm, likeTerm];
-    if (chatJid) likeParams.push(chatJid);
-    likeParams.push(String(limit), String(offset));
     return db.prepare(likeSql).all(...likeParams) as SearchResultItem[];
   }
 }

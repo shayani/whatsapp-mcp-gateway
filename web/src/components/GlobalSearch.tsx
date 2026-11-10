@@ -31,26 +31,26 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-950 overflow-hidden">
       {/* Barra de título da busca */}
-      <div className="p-4 border-b border-gray-800 bg-gray-900/40 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-gray-300">
-          <Search className="w-4 h-4 text-emerald-400" />
-          <span>
+      <div className="p-3 sm:p-4 border-b border-gray-800 bg-gray-900/40 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-300 min-w-0 flex-1">
+          <Search className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span className="truncate">
             {t("Search results for:")} <strong className="text-white">"{query}"</strong>
           </span>
-          <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full ml-2">
+          <span className="text-[10px] sm:text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full flex-shrink-0">
             {results.length} {t("found")}
           </span>
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition"
+          className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition flex-shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Lista de Resultados */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-3">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-3">
         {isSearching ? (
           <div className="text-center py-12 text-gray-500 text-sm">{t("Searching messages...")}</div>
         ) : results.length === 0 ? (

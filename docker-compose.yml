@@ -7,6 +7,9 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:8766:8765"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     volumes:
       - ./data:/app/data
     environment:

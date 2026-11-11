@@ -9,6 +9,7 @@ import { SettingsModal } from '../src/components/SettingsModal';
 import { StorageModal } from '../src/components/StorageModal';
 import { QrModal } from '../src/components/QrModal';
 import { MessageView } from '../src/components/MessageView';
+import { ChatList } from '../src/components/ChatList';
 
 function render(node: React.ReactNode, saved: string | null = null) {
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => saved } });
@@ -60,6 +61,42 @@ test('message content and contact names stay unchanged across languages', () => 
     assert.ok(html.includes(chat.name));
     assert.ok(html.includes(message.content));
   }
+});
+
+test('group chat renders agent sending toggle in MessageView and lightning icon in ChatList', () => {
+  const groupChat = {
+    jid: '1203630248234@g.us',
+    name: 'Grupo de Testes',
+    notify_name: null,
+    is_group: 1,
+    is_ignored: 0,
+    allow_send: 1,
+    unread_count: 0,
+    last_message_timestamp: 1700000000
+  };
+
+  // 1. MessageView exibe botão de envio de agente com tooltip específico de grupo
+  const ptView = render(
+    <MessageView chat={groupChat} messages={[]} isLoading={false} onToggleIgnore={noop} onToggleAllowSend={noop} />,
+    'pt-BR'
+  );
+  assert.ok(ptView.includes('Envio por agentes liberado para este grupo'));
+  assert.ok(ptView.includes('Envio por agentes: Ativo'));
+
+  const enView = render(
+    <MessageView chat={groupChat} messages={[]} isLoading={false} onToggleIgnore={noop} onToggleAllowSend={noop} />,
+    'en'
+  );
+  assert.ok(enView.includes('Agent sending enabled for this group'));
+  assert.ok(enView.includes('Agent sending: Enabled'));
+
+  // 2. ChatList exibe o ícone de raio (Zap) para o grupo quando allow_send = 1
+  const listHtml = render(
+    <ChatList chats={[groupChat]} selectedChatJid={null} onSelectChat={noop} onSearchChange={noop} />,
+    'pt-BR'
+  );
+  assert.ok(listHtml.includes('Grupo'), 'Deve conter a badge de Grupo');
+  assert.ok(listHtml.includes('Envio por agentes autorizado'), 'Deve conter o tooltip do ícone de raio');
 });
 
 test('every translation preserves interpolation variables', () => {

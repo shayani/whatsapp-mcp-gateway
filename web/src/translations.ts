@@ -50,6 +50,8 @@ export const ptBR = {
   "Storage": "Armazenamento",
   "Agent sending enabled for this contact": "Envio por agentes liberado para este contato",
   "Agent sending blocked for this contact": "Envio por agentes bloqueado para este contato",
+  "Agent sending enabled for this group": "Envio por agentes liberado para este grupo",
+  "Agent sending blocked for this group": "Envio por agentes bloqueado para este grupo",
   "Agent sending: Enabled": "Envio por agentes: Ativo",
   "Agent sending: Blocked": "Envio por agentes: Bloqueado",
   "Loading messages...": "Carregando mensagens...",

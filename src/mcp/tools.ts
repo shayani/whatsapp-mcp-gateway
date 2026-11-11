@@ -236,12 +236,12 @@ export function registerMcpTools(server: McpServer): void {
   // Tool 7: send_message
   server.tool(
     'send_message',
-    'Envia uma mensagem de texto pelo WhatsApp para um contato previamente autorizado pelo usuário no painel.',
+    'Envia uma mensagem de texto pelo WhatsApp para um contato ou grupo previamente autorizado pelo usuário no painel.',
     {
       recipient: z
         .string()
         .describe(
-          'Número de telefone convencional (ex: "+5583998261570" ou "5583998261570") ou JID do contato ("...@s.whatsapp.net"). Grupos não são permitidos.'
+          'Número de telefone convencional (ex: "+5583998261570" ou "5583998261570"), JID do contato ("...@s.whatsapp.net") ou JID de grupo ("...@g.us", consulte via list_chats). Canais (@newsletter) não são permitidos. O destinatário precisa ter autorização de envio habilitada pelo usuário no painel.'
         ),
       message: z
         .string()

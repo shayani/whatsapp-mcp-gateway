@@ -112,8 +112,8 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { jid, allow_send } = bodySchema.parse(req.body);
 
-    if (jid.endsWith('@g.us') && allow_send) {
-      return reply.code(400).send({ success: false, error: 'Envio para grupos não é permitido.' });
+    if ((jid.endsWith('@newsletter') || jid.endsWith('@broadcast')) && allow_send) {
+      return reply.code(400).send({ success: false, error: 'Envio para canais ou transmissões não é permitido.' });
     }
 
     toggleAllowSendContact(jid, allow_send);

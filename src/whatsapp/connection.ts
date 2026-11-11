@@ -631,9 +631,9 @@ class WhatsAppService {
     // 1. Normalização do destinatário
     let targetJid = recipient.trim();
 
-    // Se for grupo, bloqueia sumariamente conforme decisão Q1
-    if (targetJid.endsWith('@g.us')) {
-      throw new Error('Envio para grupos (@g.us) está estritamente bloqueado por política de segurança.');
+    // Se for canal/newsletter ou transmissão, bloqueia
+    if (targetJid.endsWith('@newsletter') || targetJid.endsWith('@broadcast')) {
+      throw new Error('Envio para canais ou transmissões não é permitido.');
     }
 
     // Se for apenas número com ou sem '+', formata para @s.whatsapp.net
@@ -645,11 +645,16 @@ class WhatsAppService {
       targetJid = `${cleanNumber}@s.whatsapp.net`;
     }
 
-    // 2. Verifica se o contato tem autorização de envio habilitada pelo usuário
+    if (!targetJid.endsWith('@s.whatsapp.net') && !targetJid.endsWith('@g.us')) {
+      throw new Error(`Formato de destinatário não suportado: ${recipient}`);
+    }
+
+    // 2. Verifica se o contato ou grupo tem autorização de envio habilitada pelo usuário
     const allowed = isSendAllowedForContact(targetJid);
     if (!allowed) {
+      const entity = targetJid.endsWith('@g.us') ? 'O grupo' : 'O contato';
       throw new Error(
-        `Envio bloqueado: O contato ${targetJid} não possui autorização de envio habilitada pelo usuário no painel.`
+        `Envio bloqueado: ${entity} ${targetJid} não possui autorização de envio habilitada pelo usuário no painel.`
       );
     }
 

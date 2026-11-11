@@ -127,7 +127,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           {t("Group")}
                         </span>
                       ) : null}
-                      {chat.allow_send && !chat.is_group && !isNewsletter ? (
+                      {chat.allow_send && !isNewsletter ? (
                         <span
                           title={t("Agent sending authorized")}
                           className="text-amber-400 flex-shrink-0 flex items-center ml-0.5"

@@ -189,8 +189,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
             </button>
           )}
 
-          {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (apenas conversas privadas e não canais) */}
-          {!chat.is_group && !contactInfo.isNewsletter && (
+          {/* Botão de Ligar/Desligar Envio pelo Agente Hermes (conversas privadas e grupos, nunca canais) */}
+          {!contactInfo.isNewsletter && (
             <button
               type="button"
               onClick={() => onToggleAllowSend(chat.jid, !Boolean(chat.allow_send))}
@@ -199,7 +199,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   ? 'bg-amber-950/80 text-amber-300 border-amber-700/60 hover:bg-amber-900/60'
                   : 'bg-gray-900/90 text-gray-400 border-gray-700/80 hover:border-gray-500'
               }`}
-              title={chat.allow_send ? t("Agent sending enabled for this contact") : t("Agent sending blocked for this contact")}
+              title={
+                chat.is_group
+                  ? (chat.allow_send ? t("Agent sending enabled for this group") : t("Agent sending blocked for this group"))
+                  : (chat.allow_send ? t("Agent sending enabled for this contact") : t("Agent sending blocked for this contact"))
+              }
             >
               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${chat.allow_send ? 'bg-amber-400 animate-pulse' : 'bg-gray-600'}`} />
               <span className="hidden sm:inline">

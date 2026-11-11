@@ -1,6 +1,6 @@
 {
   "name": "whatsapp-gateway",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "WhatsApp Baileys Gateway with SQLite WAL, Async Whisper Transcription, and Model Context Protocol (MCP) Server",
   "main": "dist/index.js",
   "type": "module",

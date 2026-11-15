@@ -5,7 +5,12 @@ import { z } from 'zod';
 import { listContacts, toggleIgnoreContact, updateContactName, toggleAllowSendContact } from '../../db/contacts.js';
 import { listChatMessages, searchMessages } from '../../db/messages.js';
 import { getAttachment } from '../../db/attachments.js';
-import { setSetting, getEffectiveGroqApiKey } from '../../db/settings.js';
+import {
+  setSetting,
+  getEffectiveGroqApiKey,
+  isImageTranscriptionEnabled,
+  setImageTranscriptionEnabled
+} from '../../db/settings.js';
 import { messageFilter } from '../../whatsapp/filter.js';
 import { transcriptionQueue } from '../../transcription/queue.js';
 import { config } from '../../config.js';
@@ -154,32 +159,61 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
     return { results };
   });
 
-  // 5. Configurações (ex: Chave Groq)
+  // 5. Configurações (ex: Chave Groq e transcrição de imagens)
   fastify.get('/api/ui/settings', async () => {
     const effectiveGroqKey = getEffectiveGroqApiKey();
     return {
       hasGroqKey: Boolean(effectiveGroqKey),
+      hasOpenAiKey: Boolean(config.openaiApiKey),
       groqKeyMasked: effectiveGroqKey
         ? `${effectiveGroqKey.slice(0, 4)}...${effectiveGroqKey.slice(-4)}`
         : null,
+      imageTranscriptionEnabled: isImageTranscriptionEnabled(),
       readOnly: config.readOnly
     };
   });
 
   fastify.post('/api/ui/settings', async (req) => {
     const bodySchema = z.object({
-      groq_api_key: z.string().optional()
+      groq_api_key: z.string().optional(),
+      image_transcription_enabled: z.boolean().optional()
     });
 
-    const { groq_api_key } = bodySchema.parse(req.body);
+    const { groq_api_key, image_transcription_enabled } = bodySchema.parse(req.body);
 
     if (groq_api_key !== undefined) {
       setSetting('groq_api_key', groq_api_key.trim());
-      // Notifica a fila para processar pendentes imediatamente com a nova chave
-      transcriptionQueue.notifyNewAudio();
+    }
+
+    if (image_transcription_enabled !== undefined) {
+      setImageTranscriptionEnabled(image_transcription_enabled);
+    }
+
+    if (groq_api_key !== undefined || image_transcription_enabled === true) {
+      // Notifica a fila para processar pendentes imediatamente com a nova configuração
+      transcriptionQueue.notifyNewMedia();
     }
 
     return { success: true };
+  });
+
+  // 5.1 Transcrever anexo sob demanda (imagem ou áudio)
+  fastify.post('/api/ui/attachments/:id/transcribe', async (req, reply) => {
+    const paramsSchema = z.object({ id: z.string() });
+    const { id } = paramsSchema.parse(req.params);
+
+    const existing = getAttachment(id);
+    if (!existing) {
+      return reply.code(404).send({ success: false, error: 'Anexo não encontrado.' });
+    }
+
+    try {
+      const attachment = await transcriptionQueue.transcribeAttachmentNow(id, { force: true });
+      return { success: true, attachment };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return reply.code(400).send({ success: false, error: message });
+    }
   });
 
   // 6. Servir anexo / mídia (imagens, áudio, vídeos, documentos)

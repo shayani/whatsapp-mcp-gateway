@@ -5,6 +5,8 @@ import pino from 'pino';
 import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import { config } from '../config.js';
 import { insertAttachment } from '../db/attachments.js';
+import { isImageTranscriptionEnabled } from '../db/settings.js';
+import { isAudioMimetype, isTranscribableImage } from '../transcription/image.js';
 import { transcriptionQueue } from '../transcription/queue.js';
 
 const mediaLogger = pino({ level: 'silent' });
@@ -24,6 +26,8 @@ function getExtensionFromMime(mime: string): string {
       return 'png';
     case 'image/webp':
       return 'webp';
+    case 'image/gif':
+      return 'gif';
     case 'video/mp4':
       return 'mp4';
     case 'application/pdf':
@@ -38,7 +42,8 @@ export async function handleMediaDownload(
   messageId: string,
   chatJid: string,
   mimetype: string,
-  fileName?: string
+  fileName?: string,
+  messageType?: string
 ): Promise<void> {
   try {
     const ext = getExtensionFromMime(mimetype);
@@ -74,7 +79,9 @@ export async function handleMediaDownload(
     fs.writeFileSync(targetFilePath, buffer);
 
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-    const isAudio = mimetype.startsWith('audio/') || mimetype.includes('ogg');
+    const isAudio = isAudioMimetype(mimetype);
+    const isImage = isTranscribableImage(mimetype, messageType) && isImageTranscriptionEnabled();
+    const shouldTranscribe = isAudio || isImage;
 
     const attachmentId = `att_${messageId}`;
 
@@ -87,11 +94,11 @@ export async function handleMediaDownload(
       file_size: buffer.length,
       sha256,
       transcription_text: null,
-      transcription_status: isAudio ? 'pending' : 'none'
+      transcription_status: shouldTranscribe ? 'pending' : 'none'
     });
 
-    if (isAudio) {
-      transcriptionQueue.notifyNewAudio();
+    if (shouldTranscribe) {
+      transcriptionQueue.notifyNewMedia();
     }
   } catch (err) {
     console.error(`Erro ao baixar anexo da mensagem ${messageId}:`, err);

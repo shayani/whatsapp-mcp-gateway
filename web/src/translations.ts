@@ -2,6 +2,7 @@
 export const ptBR = {
   "MCP Active": "MCP Ativo",
   "Search all messages and voice transcriptions...": "Buscar em todas as mensagens e transcrições de voz (FTS5)...",
+  "Search all messages and transcriptions...": "Buscar em todas as mensagens e transcrições (FTS5)...",
   "WhatsApp Online": "WhatsApp Online",
   "Scan QR": "Escanear QR",
   "Storage management and cleanup": "Gerenciamento de Armazenamento e Limpeza",
@@ -138,5 +139,21 @@ export const ptBR = {
   "{count} files saved": "{count} arquivos salvos",
   "{count} messages recorded": "{count} mensagens gravadas",
   "Freed {size} by deleting {files} media file(s).": "Liberados {size} apagando {files} arquivo(s) de mídia.",
-  "Freed {size}. Removed {messages} message(s) and {files} file(s). SQLite optimized.": "Liberados {size}. {messages} mensagem(ns) e {files} arquivo(s) removidos. SQLite otimizado."
+  "Freed {size}. Removed {messages} message(s) and {files} file(s). SQLite optimized.": "Liberados {size}. {messages} mensagem(ns) e {files} arquivo(s) removidos. SQLite otimizado.",
+  "Transcription Settings (Groq)": "Configurações de Transcrição (Groq)",
+  "Groq API Key (Whisper & Vision)": "Chave da API Groq (Whisper & Vision)",
+  "Used for fast, automatic transcription of incoming voice messages and images.": "Utilizada para transcrição automática rápida de mensagens de voz e imagens.",
+  "OpenAI fallback active": "Fallback OpenAI ativo",
+  "Automatic image transcription": "Transcrição automática de imagens",
+  "Generates a short description for received and sent photos (ignores stickers).": "Gera uma descrição curta para fotos recebidas e enviadas (ignora figurinhas).",
+  "Automatic image transcription enabled.": "Transcrição automática de imagens ativada.",
+  "Automatic image transcription paused.": "Transcrição automática de imagens pausada.",
+  "Failed to save settings.": "Falha ao salvar configurações.",
+  "Transcribing image...": "Transcrevendo imagem...",
+  "Image description": "Descrição da imagem",
+  "Image transcription failed": "Falha ao transcrever imagem",
+  "Image not transcribed yet": "Imagem ainda não transcrita",
+  "Retry": "Tentar novamente",
+  "Transcribe image": "Transcrever imagem",
+  "Failed to transcribe image.": "Falha ao transcrever imagem."
 } as const;

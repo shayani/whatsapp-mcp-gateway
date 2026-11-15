@@ -1,5 +1,5 @@
 import { getDatabase } from './index.js';
-import { config } from '../config.js';
+import { config, loadYamlConfig } from '../config.js';
 
 export function getSetting(key: string): string | null {
   const db = getDatabase();
@@ -27,4 +27,15 @@ export function getEffectiveGroqApiKey(): string | undefined {
     return dbKey.trim();
   }
   return config.groqApiKey;
+}
+
+export function isImageTranscriptionEnabled(): boolean {
+  const dbValue = getSetting('image_transcription_enabled');
+  if (dbValue === 'true') return true;
+  if (dbValue === 'false') return false;
+  return loadYamlConfig().image_transcription.enabled !== false;
+}
+
+export function setImageTranscriptionEnabled(enabled: boolean): void {
+  setSetting('image_transcription_enabled', enabled ? 'true' : 'false');
 }

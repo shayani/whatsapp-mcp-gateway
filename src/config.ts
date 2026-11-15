@@ -35,6 +35,13 @@ export interface YamlConfig {
     model: string;
     language: string;
   };
+  image_transcription: {
+    enabled: boolean;
+    provider: string;
+    model: string;
+    openai_model: string;
+    language: string;
+  };
   retention: {
     media_retention_days: number;
   };
@@ -54,6 +61,13 @@ const DEFAULT_YAML_CONFIG: YamlConfig = {
   transcription: {
     provider: 'groq',
     model: 'whisper-large-v3-turbo',
+    language: 'pt'
+  },
+  image_transcription: {
+    enabled: true,
+    provider: 'groq',
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    openai_model: 'gpt-4o-mini',
     language: 'pt'
   },
   retention: {
@@ -87,8 +101,17 @@ export function loadYamlConfig(): YamlConfig {
   try {
     if (fs.existsSync(configYamlPath)) {
       const content = fs.readFileSync(configYamlPath, 'utf-8');
-      const parsed = yaml.parse(content);
-      return { ...DEFAULT_YAML_CONFIG, ...parsed };
+      const parsed = yaml.parse(content) || {};
+      return {
+        filters: { ...DEFAULT_YAML_CONFIG.filters, ...(parsed.filters || {}) },
+        transcription: { ...DEFAULT_YAML_CONFIG.transcription, ...(parsed.transcription || {}) },
+        image_transcription: {
+          ...DEFAULT_YAML_CONFIG.image_transcription,
+          ...(parsed.image_transcription || {})
+        },
+        retention: { ...DEFAULT_YAML_CONFIG.retention, ...(parsed.retention || {}) },
+        sync: { ...DEFAULT_YAML_CONFIG.sync, ...(parsed.sync || {}) }
+      };
     }
   } catch (err) {
     console.error('Erro ao ler config.yaml, usando defaults:', err);

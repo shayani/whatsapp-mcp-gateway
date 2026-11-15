@@ -107,3 +107,123 @@ test('every translation preserves interpolation variables', () => {
   assert.equal(translate('pt-BR', '{count} files saved', {count: 2}), '2 arquivos salvos');
   assert.equal(translate('en', '{count} files saved', {count: 2}), '2 files saved');
 });
+
+test('image transcription renders in MessageView (completed, cleaned, and sticker excluded) and toggle in SettingsModal', () => {
+  const chat = {
+    jid: '5583999991111@s.whatsapp.net',
+    name: 'Contato Imagem',
+    notify_name: null,
+    is_group: 0,
+    is_ignored: 0,
+    unread_count: 0,
+    last_message_timestamp: 1700000000
+  };
+  const messages = [
+    {
+      id: 'm_img_done',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000001,
+      message_type: 'image',
+      content: null,
+      attachments: [
+        {
+          id: 'att_done',
+          message_id: 'm_img_done',
+          file_path: '/tmp/foto.jpg',
+          file_name: 'foto.jpg',
+          mimetype: 'image/jpeg',
+          file_size: 1024,
+          transcription_text: 'Nota fiscal de supermercado no valor de R$ 85,00.',
+          transcription_status: 'completed' as const
+        }
+      ]
+    },
+    {
+      id: 'm_img_cleaned',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000002,
+      message_type: 'image',
+      content: null,
+      attachments: [
+        {
+          id: 'att_cleaned',
+          message_id: 'm_img_cleaned',
+          file_path: '',
+          file_name: 'antiga.jpg',
+          mimetype: 'image/jpeg',
+          file_size: 1024,
+          transcription_text: 'Descrição preservada após limpeza.',
+          transcription_status: 'completed' as const
+        }
+      ]
+    },
+    {
+      id: 'm_img_none',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000003,
+      message_type: 'image',
+      content: null,
+      attachments: [
+        {
+          id: 'att_none',
+          message_id: 'm_img_none',
+          file_path: '/tmp/pendente.jpg',
+          file_name: 'pendente.jpg',
+          mimetype: 'image/jpeg',
+          file_size: 1024,
+          transcription_text: null,
+          transcription_status: 'none' as const
+        }
+      ]
+    },
+    {
+      id: 'm_sticker',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000004,
+      message_type: 'sticker',
+      content: null,
+      attachments: [
+        {
+          id: 'att_sticker',
+          message_id: 'm_sticker',
+          file_path: '/tmp/fig.webp',
+          file_name: 'fig.webp',
+          mimetype: 'image/webp',
+          file_size: 512,
+          transcription_text: null,
+          transcription_status: 'none' as const
+        }
+      ]
+    }
+  ];
+
+  const ptHtml = render(
+    <MessageView chat={chat} messages={messages} isLoading={false} onToggleIgnore={noop} onToggleAllowSend={noop} />,
+    'pt-BR'
+  );
+  assert.ok(ptHtml.includes('Descrição da imagem'));
+  assert.ok(ptHtml.includes('Nota fiscal de supermercado no valor de R$ 85,00.'));
+  assert.ok(ptHtml.includes('Descrição preservada após limpeza.'));
+  assert.ok(ptHtml.includes('Transcrever imagem'));
+  // Apenas 1 botão "Transcrever imagem" (m_img_none); figurinha (m_sticker) não exibe botão
+  assert.equal((ptHtml.match(/Transcrever imagem/g) || []).length, 1);
+
+  const enSettings = render(
+    <SettingsModal isOpen hasGroqKey={false} groqKeyMasked={null} imageTranscriptionEnabled={true} onClose={noop} onSaved={noop} />,
+    'en'
+  );
+  assert.ok(enSettings.includes('Automatic image transcription'));
+  const ptSettings = render(
+    <SettingsModal isOpen hasGroqKey={false} groqKeyMasked={null} imageTranscriptionEnabled={false} onClose={noop} onSaved={noop} />,
+    'pt-BR'
+  );
+  assert.ok(ptSettings.includes('Transcrição automática de imagens'));
+});

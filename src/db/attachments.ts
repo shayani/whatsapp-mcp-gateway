@@ -79,12 +79,54 @@ export function updateTranscription(
   tx();
 }
 
-export function getPendingAudioTranscriptions(limit = 10): Attachment[] {
+export interface PendingTranscriptionItem extends Attachment {
+  message_type: string;
+  message_content: string | null;
+}
+
+export function getAttachmentWithContext(id: string): PendingTranscriptionItem | undefined {
   const db = getDatabase();
   return db.prepare(`
-    SELECT * FROM attachments
-    WHERE transcription_status = 'pending'
-    ORDER BY created_at ASC
+    SELECT a.*, m.message_type AS message_type, m.content AS message_content
+    FROM attachments a
+    JOIN messages m ON m.id = a.message_id
+    WHERE a.id = ?
+  `).get(id) as PendingTranscriptionItem | undefined;
+}
+
+export function setAttachmentTranscriptionStatus(
+  id: string,
+  status: Attachment['transcription_status'],
+  transcriptionText?: string | null
+): void {
+  const db = getDatabase();
+  if (transcriptionText !== undefined) {
+    db.prepare(`
+      UPDATE attachments
+      SET transcription_status = ?, transcription_text = ?
+      WHERE id = ?
+    `).run(status, transcriptionText, id);
+  } else {
+    db.prepare(`
+      UPDATE attachments
+      SET transcription_status = ?
+      WHERE id = ?
+    `).run(status, id);
+  }
+}
+
+export function getPendingTranscriptions(limit = 10): PendingTranscriptionItem[] {
+  const db = getDatabase();
+  return db.prepare(`
+    SELECT a.*, m.message_type AS message_type, m.content AS message_content
+    FROM attachments a
+    JOIN messages m ON m.id = a.message_id
+    WHERE a.transcription_status = 'pending'
+    ORDER BY a.created_at ASC
     LIMIT ?
-  `).all(limit) as Attachment[];
+  `).all(limit) as PendingTranscriptionItem[];
+}
+
+export function getPendingAudioTranscriptions(limit = 10): PendingTranscriptionItem[] {
+  return getPendingTranscriptions(limit);
 }

@@ -56,7 +56,9 @@ export interface AuthStatus {
 
 export interface Settings {
   hasGroqKey: boolean;
+  hasOpenAiKey?: boolean;
   groqKeyMasked: string | null;
+  imageTranscriptionEnabled?: boolean;
   readOnly: boolean;
 }
 
@@ -111,14 +113,32 @@ export async function fetchSettings(): Promise<Settings> {
   return res.json();
 }
 
-export async function saveGroqKey(groqApiKey: string): Promise<boolean> {
+export async function saveSettings(payload: {
+  groq_api_key?: string;
+  image_transcription_enabled?: boolean;
+}): Promise<boolean> {
   const res = await fetch('/api/ui/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groq_api_key: groqApiKey })
+    body: JSON.stringify(payload)
   });
   const data = await res.json();
-  return data.success;
+  return Boolean(data.success);
+}
+
+export async function saveGroqKey(groqApiKey: string): Promise<boolean> {
+  return saveSettings({ groq_api_key: groqApiKey });
+}
+
+export async function transcribeAttachment(attachmentId: string): Promise<Attachment> {
+  const res = await fetch(`/api/ui/attachments/${encodeURIComponent(attachmentId)}/transcribe`, {
+    method: 'POST'
+  });
+  const data = await res.json();
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || 'Falha ao transcrever anexo');
+  }
+  return data.attachment;
 }
 
 export function getAttachmentUrl(attachmentId: string): string {

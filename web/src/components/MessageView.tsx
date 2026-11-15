@@ -11,9 +11,11 @@ import {
   X,
   Bot,
   HardDrive,
-  ArrowLeft
+  ArrowLeft,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
-import { getAttachmentUrl, type Contact, type Message } from '../api';
+import { getAttachmentUrl, transcribeAttachment, type Attachment, type Contact, type Message } from '../api';
 import { getContactDisplay } from '../utils/contactUtils';
 
 interface MessageViewProps {
@@ -24,6 +26,7 @@ interface MessageViewProps {
   onToggleAllowSend: (jid: string, newAllowSendState: boolean) => void;
   onOpenStorage?: (jid: string) => void;
   onBack?: () => void;
+  onAttachmentTranscribed?: () => void;
 }
 
 export const MessageView: React.FC<MessageViewProps> = ({
@@ -33,7 +36,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
   onToggleIgnore,
   onToggleAllowSend,
   onOpenStorage,
-  onBack
+  onBack,
+  onAttachmentTranscribed
 }) => {
   const { t, locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -46,7 +50,11 @@ export const MessageView: React.FC<MessageViewProps> = ({
     fileName: string;
     fileSize?: number | null;
     caption?: string | null;
+    transcription?: string | null;
   } | null>(null);
+  const [transcribingIds, setTranscribingIds] = useState<Record<string, boolean>>({});
+  const [transcribeErrors, setTranscribeErrors] = useState<Record<string, string>>({});
+  const [localAttachments, setLocalAttachments] = useState<Record<string, Attachment>>({});
 
   // Quando o contato selecionado mudar, marca para ir direto ao fim instantaneamente
   if (activeChatJidRef.current !== chat?.jid) {
@@ -135,6 +143,27 @@ export const MessageView: React.FC<MessageViewProps> = ({
       return `+${raw}`;
     }
     return raw;
+  };
+
+  const handleManualTranscribe = async (e: React.MouseEvent, attachmentId: string) => {
+    e.stopPropagation();
+    setTranscribingIds((prev) => ({ ...prev, [attachmentId]: true }));
+    setTranscribeErrors((prev) => {
+      const next = { ...prev };
+      delete next[attachmentId];
+      return next;
+    });
+
+    try {
+      const updated = await transcribeAttachment(attachmentId);
+      setLocalAttachments((prev) => ({ ...prev, [attachmentId]: updated }));
+      onAttachmentTranscribed?.();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : t("Failed to transcribe image.");
+      setTranscribeErrors((prev) => ({ ...prev, [attachmentId]: msg }));
+    } finally {
+      setTranscribingIds((prev) => ({ ...prev, [attachmentId]: false }));
+    }
   };
 
   return (
@@ -295,18 +324,74 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   {/* Anexos de Imagens / Thumbnails */}
                   {hasImages && (
                     <div className="space-y-2 mb-2">
-                      {imageAttachments.map((att) => {
+                      {imageAttachments.map((rawAtt) => {
+                        const att = localAttachments[rawAtt.id] || rawAtt;
                         const isCleaned = !att.file_path || att.file_path.trim().length === 0;
+                        const isSticker = msg.message_type === 'sticker' || (att.mimetype === 'image/webp' && msg.message_type === 'sticker');
+                        const isBusy = Boolean(transcribingIds[att.id]);
+                        const manualError = transcribeErrors[att.id];
+
+                        const renderImageTranscriptionBlock = () => {
+                          if (isSticker) return null;
+
+                          if (isBusy || att.transcription_status === 'pending') {
+                            return (
+                              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-300 bg-gray-950/70 border border-gray-800/80 rounded-lg px-2.5 py-1.5 animate-pulse">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                                <span>{t("Transcribing image...")}</span>
+                              </div>
+                            );
+                          }
+
+                          if (att.transcription_status === 'completed' && att.transcription_text) {
+                            return (
+                              <div className="mt-1.5 bg-gray-950/75 border border-emerald-500/20 border-l-2 border-l-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 space-y-0.5">
+                                <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
+                                  <Sparkles className="w-3 h-3" />
+                                  <span>{t("Image description")}</span>
+                                </div>
+                                <p className="leading-relaxed text-gray-200 select-text">
+                                  {att.transcription_text}
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          if (isCleaned) return null;
+
+                          const isFailed = att.transcription_status === 'failed' || Boolean(manualError);
+                          return (
+                            <div className="mt-1.5 flex items-center justify-between gap-2 bg-gray-950/60 border border-gray-800/80 rounded-lg px-2.5 py-1.5 text-[11px]">
+                              <span className={isFailed ? 'text-rose-300 truncate' : 'text-gray-400 truncate'}>
+                                {manualError
+                                  ? manualError
+                                  : isFailed
+                                    ? (att.transcription_text || t("Image transcription failed"))
+                                    : t("Image not transcribed yet")}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleManualTranscribe(e, att.id)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-800 hover:bg-emerald-900/60 text-emerald-300 border border-gray-700 hover:border-emerald-700 transition flex-shrink-0"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                <span>{isFailed ? t("Retry") : t("Transcribe image")}</span>
+                              </button>
+                            </div>
+                          );
+                        };
+
                         if (isCleaned) {
                           return (
-                            <div key={att.id} className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/70 p-2.5 rounded-xl border border-gray-800/80 mb-2">
-                              <ImageIcon className="w-4 h-4 text-gray-500" />
-                              <span className="italic">{t("Image removed to save space")}</span>
+                            <div key={att.id} className="mb-2">
+                              <div className="flex items-center gap-2 text-xs text-gray-400 bg-gray-950/70 p-2.5 rounded-xl border border-gray-800/80">
+                                <ImageIcon className="w-4 h-4 text-gray-500" />
+                                <span className="italic">{t("Image removed to save space")}</span>
+                              </div>
+                              {renderImageTranscriptionBlock()}
                             </div>
                           );
                         }
-
-                        const isSticker = msg.message_type === 'sticker' || (att.mimetype === 'image/webp' && msg.message_type === 'sticker');
 
                         if (isSticker) {
                           return (
@@ -320,7 +405,8 @@ export const MessageView: React.FC<MessageViewProps> = ({
                                   url: getAttachmentUrl(att.id),
                                   fileName: att.file_name || t("Sticker"),
                                   fileSize: att.file_size,
-                                  caption: null
+                                  caption: null,
+                                  transcription: null
                                 })}
                               />
                             </div>
@@ -328,28 +414,31 @@ export const MessageView: React.FC<MessageViewProps> = ({
                         }
 
                         return (
-                          <div
-                            key={att.id}
-                            className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 max-w-full sm:max-w-sm cursor-pointer shadow-sm"
-                            onClick={() => setSelectedImage({
-                              url: getAttachmentUrl(att.id),
-                              fileName: att.file_name || t("Image"),
-                              fileSize: att.file_size,
-                              caption: msg.content
-                            })}
-                          >
-                            <img
-                              src={getAttachmentUrl(att.id)}
-                              alt={att.file_name || t("Image")}
-                              loading="lazy"
-                              className="max-h-72 w-full object-contain rounded-xl transition duration-200 group-hover:brightness-105"
-                            />
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2 pointer-events-none">
-                              <span className="flex items-center gap-1.5 text-[11px] font-medium bg-gray-900/85 text-gray-200 px-2 py-1 rounded-md backdrop-blur-sm border border-gray-700/50 shadow">
-                                <Maximize2 className="w-3 h-3 text-emerald-400" />
-                                {t("Enlarge")}
-                              </span>
+                          <div key={att.id} className="max-w-full sm:max-w-sm">
+                            <div
+                              className="relative group overflow-hidden rounded-xl border border-gray-800/80 bg-black/40 cursor-pointer shadow-sm"
+                              onClick={() => setSelectedImage({
+                                url: getAttachmentUrl(att.id),
+                                fileName: att.file_name || t("Image"),
+                                fileSize: att.file_size,
+                                caption: msg.content,
+                                transcription: att.transcription_status === 'completed' ? att.transcription_text : null
+                              })}
+                            >
+                              <img
+                                src={getAttachmentUrl(att.id)}
+                                alt={att.file_name || t("Image")}
+                                loading="lazy"
+                                className="max-h-72 w-full object-contain rounded-xl transition duration-200 group-hover:brightness-105"
+                              />
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-end p-2 pointer-events-none">
+                                <span className="flex items-center gap-1.5 text-[11px] font-medium bg-gray-900/85 text-gray-200 px-2 py-1 rounded-md backdrop-blur-sm border border-gray-700/50 shadow">
+                                  <Maximize2 className="w-3 h-3 text-emerald-400" />
+                                  {t("Enlarge")}
+                                </span>
+                              </div>
                             </div>
+                            {renderImageTranscriptionBlock()}
                           </div>
                         );
                       })}
@@ -569,13 +658,20 @@ export const MessageView: React.FC<MessageViewProps> = ({
             />
           </div>
 
-          {/* Legenda inferior se houver */}
-          {selectedImage.caption ? (
+          {/* Legenda e transcrição inferiores se houver */}
+          {(selectedImage.caption || selectedImage.transcription) ? (
             <div
-              className="mx-auto max-w-xl text-center px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-900/90 rounded-xl border border-gray-800 text-xs text-gray-200 backdrop-blur-sm shadow truncate"
+              className="mx-auto max-w-2xl text-center px-3 py-2 sm:px-4 bg-gray-900/90 rounded-xl border border-gray-800 text-xs text-gray-200 backdrop-blur-sm shadow space-y-1"
               onClick={(e) => e.stopPropagation()}
             >
-              {selectedImage.caption}
+              {selectedImage.caption && (
+                <p className="text-gray-100">{selectedImage.caption}</p>
+              )}
+              {selectedImage.transcription && (
+                <p className="text-emerald-300/90 text-[11px] leading-relaxed">
+                  {selectedImage.transcription}
+                </p>
+              )}
             </div>
           ) : (
             <div />

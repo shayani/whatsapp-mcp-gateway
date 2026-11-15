@@ -591,7 +591,14 @@ class WhatsAppService {
     if (details.mediaObject) {
       const shouldDownloadMedia = mediaCutoffTimestamp ? timestamp >= mediaCutoffTimestamp : true;
       if (shouldDownloadMedia) {
-        handleMediaDownload(msg, messageId, chatJid, details.mimetype, details.fileName).catch((e) => {
+        handleMediaDownload(
+          msg,
+          messageId,
+          chatJid,
+          details.mimetype,
+          details.fileName,
+          details.messageType
+        ).catch((e) => {
           console.error(`Falha no download da mídia ${messageId}:`, e);
         });
       }

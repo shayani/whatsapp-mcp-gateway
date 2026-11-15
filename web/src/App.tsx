@@ -56,7 +56,9 @@ export const App: React.FC = () => {
   });
   const [settings, setSettings] = useState<Settings>({
     hasGroqKey: false,
+    hasOpenAiKey: false,
     groqKeyMasked: null,
+    imageTranscriptionEnabled: true,
     readOnly: true
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -213,7 +215,7 @@ export const App: React.FC = () => {
               <input
                 autoFocus
                 type="text"
-                placeholder={t("Search all messages and voice transcriptions...")}
+                placeholder={t("Search all messages and transcriptions...")}
                 value={globalSearchTerm}
                 onChange={(e) => setGlobalSearchTerm(e.target.value)}
                 className="w-full bg-gray-950 text-xs rounded-xl pl-9 pr-8 py-2 text-gray-200 placeholder-gray-500 border border-gray-800 focus:outline-none focus:border-emerald-500 transition"
@@ -251,7 +253,7 @@ export const App: React.FC = () => {
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder={t("Search all messages and voice transcriptions...")}
+                  placeholder={t("Search all messages and transcriptions...")}
                   value={globalSearchTerm}
                   onChange={(e) => setGlobalSearchTerm(e.target.value)}
                   className="w-full bg-gray-950 text-xs rounded-xl pl-9 pr-4 py-2 text-gray-200 placeholder-gray-500 border border-gray-800 focus:outline-none focus:border-emerald-500 transition"
@@ -372,6 +374,7 @@ export const App: React.FC = () => {
               onBack={() => setSelectedChat(null)}
               onToggleIgnore={handleToggleIgnore}
               onToggleAllowSend={handleToggleAllowSend}
+              onAttachmentTranscribed={() => selectedChat && loadChatMessages(selectedChat.jid, true)}
               onOpenStorage={(jid) => {
                 const found = chats.find((c) => c.jid === jid);
                 setStorageInitialSearch(found?.name || found?.notify_name || jid);
@@ -398,7 +401,9 @@ export const App: React.FC = () => {
       <SettingsModal
         isOpen={isSettingsOpen}
         hasGroqKey={settings.hasGroqKey}
+        hasOpenAiKey={settings.hasOpenAiKey}
         groqKeyMasked={settings.groqKeyMasked}
+        imageTranscriptionEnabled={settings.imageTranscriptionEnabled}
         onClose={() => setIsSettingsOpen(false)}
         onSaved={loadMeta}
       />

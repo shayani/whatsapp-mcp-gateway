@@ -1,6 +1,6 @@
 import { useI18n } from '../i18n';
 import React from 'react';
-import { Search, X, MessageSquare, Mic } from 'lucide-react';
+import { Search, X, MessageSquare, Mic, Image as ImageIcon } from 'lucide-react';
 import type { SearchResult } from '../api';
 
 interface GlobalSearchProps {
@@ -77,8 +77,18 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({
               )}
 
               {res.transcription_text && (
-                <div className="text-sm italic text-indigo-300 bg-indigo-950/40 p-2.5 rounded-lg border-l-2 border-indigo-500 flex items-start gap-2">
-                  <Mic className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                <div
+                  className={`text-sm italic p-2.5 rounded-lg border-l-2 flex items-start gap-2 ${
+                    res.message_type === 'image'
+                      ? 'text-emerald-200 bg-emerald-950/40 border-emerald-500'
+                      : 'text-indigo-300 bg-indigo-950/40 border-indigo-500'
+                  }`}
+                >
+                  {res.message_type === 'image' ? (
+                    <ImageIcon className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <Mic className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+                  )}
                   <span>"{res.transcription_text}"</span>
                 </div>
               )}

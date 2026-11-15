@@ -25,8 +25,8 @@ RUN npm run build:server
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 
-# Instalar FFmpeg necessário para decodificação de áudio WhatsApp Opus/OGG
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# Instalar FFmpeg (áudio/imagens) e poppler-utils (extração/renderização de PDF)
+RUN apt-get update && apt-get install -y ffmpeg poppler-utils && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV PORT=8765

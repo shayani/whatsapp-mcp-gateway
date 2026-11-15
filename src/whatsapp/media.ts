@@ -5,8 +5,9 @@ import pino from 'pino';
 import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import { config } from '../config.js';
 import { insertAttachment } from '../db/attachments.js';
-import { isImageTranscriptionEnabled } from '../db/settings.js';
+import { isImageTranscriptionEnabled, isPdfTranscriptionEnabled } from '../db/settings.js';
 import { isAudioMimetype, isTranscribableImage } from '../transcription/image.js';
+import { isPdfAttachment } from '../transcription/pdf.js';
 import { transcriptionQueue } from '../transcription/queue.js';
 
 const mediaLogger = pino({ level: 'silent' });
@@ -81,7 +82,8 @@ export async function handleMediaDownload(
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
     const isAudio = isAudioMimetype(mimetype);
     const isImage = isTranscribableImage(mimetype, messageType) && isImageTranscriptionEnabled();
-    const shouldTranscribe = isAudio || isImage;
+    const isPdf = isPdfAttachment(mimetype, fileName) && isPdfTranscriptionEnabled();
+    const shouldTranscribe = isAudio || isImage || isPdf;
 
     const attachmentId = `att_${messageId}`;
 

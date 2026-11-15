@@ -1,6 +1,6 @@
 import { useI18n } from '../i18n';
 import React, { useState, useEffect } from 'react';
-import { X, Key, Check, AlertCircle, Image as ImageIcon } from 'lucide-react';
+import { X, Key, Check, AlertCircle, Image as ImageIcon, FileText } from 'lucide-react';
 import { saveSettings } from '../api';
 
 interface SettingsModalProps {
@@ -9,6 +9,7 @@ interface SettingsModalProps {
   hasOpenAiKey?: boolean;
   groqKeyMasked: string | null;
   imageTranscriptionEnabled?: boolean;
+  pdfTranscriptionEnabled?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -19,19 +20,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   hasOpenAiKey = false,
   groqKeyMasked,
   imageTranscriptionEnabled = true,
+  pdfTranscriptionEnabled = true,
   onClose,
   onSaved
 }) => {
   const { t } = useI18n();
   const [keyInput, setKeyInput] = useState('');
   const [imageEnabled, setImageEnabled] = useState(imageTranscriptionEnabled);
+  const [pdfEnabled, setPdfEnabled] = useState(pdfTranscriptionEnabled);
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingImage, setIsTogglingImage] = useState(false);
+  const [isTogglingPdf, setIsTogglingPdf] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     setImageEnabled(imageTranscriptionEnabled);
-  }, [imageTranscriptionEnabled, isOpen]);
+    setPdfEnabled(pdfTranscriptionEnabled);
+  }, [imageTranscriptionEnabled, pdfTranscriptionEnabled, isOpen]);
 
   if (!isOpen) return null;
 
@@ -84,6 +89,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const handleTogglePdfTranscription = async () => {
+    const nextValue = !pdfEnabled;
+    setIsTogglingPdf(true);
+    setStatusMsg(null);
+
+    try {
+      const ok = await saveSettings({ pdf_transcription_enabled: nextValue });
+      if (ok) {
+        setPdfEnabled(nextValue);
+        setStatusMsg({
+          type: 'success',
+          text: nextValue
+            ? t("Automatic PDF summary enabled.")
+            : t("Automatic PDF summary paused.")
+        });
+        onSaved();
+      } else {
+        setStatusMsg({ type: 'error', text: t("Failed to save settings.") });
+      }
+    } catch {
+      setStatusMsg({ type: 'error', text: t("Could not connect to the server.") });
+    } finally {
+      setIsTogglingPdf(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl">
@@ -110,7 +141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-emerald-500"
             />
             <p className="text-[11px] text-gray-400 mt-1">
-              {t("Used for fast, automatic transcription of incoming voice messages and images.")}
+              {t("Used for fast, automatic transcription of incoming voice messages, images, and PDFs.")}
             </p>
           </div>
 
@@ -149,6 +180,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={handleToggleImageTranscription}
               className={`w-10 h-5 flex items-center rounded-full p-0.5 transition flex-shrink-0 disabled:opacity-50 ${
                 imageEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-700 justify-start'
+              }`}
+            >
+              <span className="w-4 h-4 rounded-full bg-white shadow-sm" />
+            </button>
+          </div>
+
+          <div className="bg-gray-950/60 p-3 rounded-lg border border-gray-800 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-gray-200">
+                <FileText className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                <span>{t("Automatic PDF summary")}</span>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {t("Generates a short summary for received and sent PDF documents.")}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pdfEnabled}
+              disabled={isTogglingPdf}
+              onClick={handleTogglePdfTranscription}
+              className={`w-10 h-5 flex items-center rounded-full p-0.5 transition flex-shrink-0 disabled:opacity-50 ${
+                pdfEnabled ? 'bg-emerald-500 justify-end' : 'bg-gray-700 justify-start'
               }`}
             >
               <span className="w-4 h-4 rounded-full bg-white shadow-sm" />

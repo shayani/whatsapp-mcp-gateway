@@ -59,6 +59,7 @@ export const App: React.FC = () => {
     hasOpenAiKey: false,
     groqKeyMasked: null,
     imageTranscriptionEnabled: true,
+    pdfTranscriptionEnabled: true,
     readOnly: true
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -404,6 +405,7 @@ export const App: React.FC = () => {
         hasOpenAiKey={settings.hasOpenAiKey}
         groqKeyMasked={settings.groqKeyMasked}
         imageTranscriptionEnabled={settings.imageTranscriptionEnabled}
+        pdfTranscriptionEnabled={settings.pdfTranscriptionEnabled}
         onClose={() => setIsSettingsOpen(false)}
         onSaved={loadMeta}
       />

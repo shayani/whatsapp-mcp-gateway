@@ -42,6 +42,15 @@ export interface YamlConfig {
     openai_model: string;
     language: string;
   };
+  pdf_transcription: {
+    enabled: boolean;
+    provider: string;
+    model: string;
+    openai_model: string;
+    language: string;
+    max_pages_for_vision: number;
+    max_text_chars: number;
+  };
   retention: {
     media_retention_days: number;
   };
@@ -69,6 +78,15 @@ const DEFAULT_YAML_CONFIG: YamlConfig = {
     model: 'qwen/qwen3.8-27b',
     openai_model: 'gpt-4o-mini',
     language: 'pt'
+  },
+  pdf_transcription: {
+    enabled: true,
+    provider: 'groq',
+    model: 'qwen/qwen3.8-27b',
+    openai_model: 'gpt-4o-mini',
+    language: 'pt',
+    max_pages_for_vision: 3,
+    max_text_chars: 16000
   },
   retention: {
     media_retention_days: 0 // 0 = sem expiração
@@ -108,6 +126,10 @@ export function loadYamlConfig(): YamlConfig {
         image_transcription: {
           ...DEFAULT_YAML_CONFIG.image_transcription,
           ...(parsed.image_transcription || {})
+        },
+        pdf_transcription: {
+          ...DEFAULT_YAML_CONFIG.pdf_transcription,
+          ...(parsed.pdf_transcription || {})
         },
         retention: { ...DEFAULT_YAML_CONFIG.retention, ...(parsed.retention || {}) },
         sync: { ...DEFAULT_YAML_CONFIG.sync, ...(parsed.sync || {}) }

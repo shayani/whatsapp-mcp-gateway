@@ -166,6 +166,76 @@ export const MessageView: React.FC<MessageViewProps> = ({
     }
   };
 
+  const renderSummaryBlock = (
+    att: Attachment,
+    options: {
+      isCleaned: boolean;
+      accent: 'emerald' | 'amber';
+      labels: {
+        pending: string;
+        completedTitle: string;
+        failedFallback: string;
+        emptyPrompt: string;
+        actionLabel: string;
+      };
+    }
+  ) => {
+    const isBusy = Boolean(transcribingIds[att.id]);
+    const manualError = transcribeErrors[att.id];
+
+    if (isBusy || att.transcription_status === 'pending') {
+      return (
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-300 bg-gray-950/70 border border-gray-800/80 rounded-lg px-2.5 py-1.5 animate-pulse">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+          <span>{options.labels.pending}</span>
+        </div>
+      );
+    }
+
+    if (att.transcription_status === 'completed' && att.transcription_text) {
+      const borderClass =
+        options.accent === 'amber'
+          ? 'border-amber-500/20 border-l-amber-500'
+          : 'border-emerald-500/20 border-l-emerald-500';
+      const titleClass = options.accent === 'amber' ? 'text-amber-400' : 'text-emerald-400';
+
+      return (
+        <div className={`mt-1.5 bg-gray-950/75 border border-l-2 ${borderClass} rounded-lg px-2.5 py-1.5 text-xs text-gray-200 space-y-0.5`}>
+          <div className={`flex items-center gap-1 text-[10px] font-medium ${titleClass}`}>
+            <Sparkles className="w-3 h-3" />
+            <span>{options.labels.completedTitle}</span>
+          </div>
+          <p className="leading-relaxed text-gray-200 select-text">
+            {att.transcription_text}
+          </p>
+        </div>
+      );
+    }
+
+    if (options.isCleaned) return null;
+
+    const isFailed = att.transcription_status === 'failed' || Boolean(manualError);
+    return (
+      <div className="mt-1.5 flex items-center justify-between gap-2 bg-gray-950/60 border border-gray-800/80 rounded-lg px-2.5 py-1.5 text-[11px]">
+        <span className={isFailed ? 'text-rose-300 truncate' : 'text-gray-400 truncate'}>
+          {manualError
+            ? manualError
+            : isFailed
+              ? (att.transcription_text || options.labels.failedFallback)
+              : options.labels.emptyPrompt}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => handleManualTranscribe(e, att.id)}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-800 hover:bg-emerald-900/60 text-emerald-300 border border-gray-700 hover:border-emerald-700 transition flex-shrink-0"
+        >
+          <RefreshCw className="w-3 h-3" />
+          <span>{isFailed ? t("Retry") : options.labels.actionLabel}</span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-gray-950 relative">
       {/* Cabeçalho da Conversa */}
@@ -328,58 +398,21 @@ export const MessageView: React.FC<MessageViewProps> = ({
                         const att = localAttachments[rawAtt.id] || rawAtt;
                         const isCleaned = !att.file_path || att.file_path.trim().length === 0;
                         const isSticker = msg.message_type === 'sticker' || (att.mimetype === 'image/webp' && msg.message_type === 'sticker');
-                        const isBusy = Boolean(transcribingIds[att.id]);
-                        const manualError = transcribeErrors[att.id];
 
-                        const renderImageTranscriptionBlock = () => {
-                          if (isSticker) return null;
-
-                          if (isBusy || att.transcription_status === 'pending') {
-                            return (
-                              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-amber-300 bg-gray-950/70 border border-gray-800/80 rounded-lg px-2.5 py-1.5 animate-pulse">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                                <span>{t("Transcribing image...")}</span>
-                              </div>
-                            );
-                          }
-
-                          if (att.transcription_status === 'completed' && att.transcription_text) {
-                            return (
-                              <div className="mt-1.5 bg-gray-950/75 border border-emerald-500/20 border-l-2 border-l-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 space-y-0.5">
-                                <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-400">
-                                  <Sparkles className="w-3 h-3" />
-                                  <span>{t("Image description")}</span>
-                                </div>
-                                <p className="leading-relaxed text-gray-200 select-text">
-                                  {att.transcription_text}
-                                </p>
-                              </div>
-                            );
-                          }
-
-                          if (isCleaned) return null;
-
-                          const isFailed = att.transcription_status === 'failed' || Boolean(manualError);
-                          return (
-                            <div className="mt-1.5 flex items-center justify-between gap-2 bg-gray-950/60 border border-gray-800/80 rounded-lg px-2.5 py-1.5 text-[11px]">
-                              <span className={isFailed ? 'text-rose-300 truncate' : 'text-gray-400 truncate'}>
-                                {manualError
-                                  ? manualError
-                                  : isFailed
-                                    ? (att.transcription_text || t("Image transcription failed"))
-                                    : t("Image not transcribed yet")}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={(e) => handleManualTranscribe(e, att.id)}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-800 hover:bg-emerald-900/60 text-emerald-300 border border-gray-700 hover:border-emerald-700 transition flex-shrink-0"
-                              >
-                                <RefreshCw className="w-3 h-3" />
-                                <span>{isFailed ? t("Retry") : t("Transcribe image")}</span>
-                              </button>
-                            </div>
-                          );
-                        };
+                        const renderImageTranscriptionBlock = () =>
+                          isSticker
+                            ? null
+                            : renderSummaryBlock(att, {
+                                isCleaned,
+                                accent: 'emerald',
+                                labels: {
+                                  pending: t("Transcribing image..."),
+                                  completedTitle: t("Image description"),
+                                  failedFallback: t("Image transcription failed"),
+                                  emptyPrompt: t("Image not transcribed yet"),
+                                  actionLabel: t("Transcribe image")
+                                }
+                              });
 
                         if (isCleaned) {
                           return (
@@ -463,9 +496,14 @@ export const MessageView: React.FC<MessageViewProps> = ({
                   {/* Outros Anexos (Áudio, Vídeo, Documentos) */}
                   {nonImageAttachments.length > 0 && (
                     <div className="space-y-2 mt-2 pt-2 border-t border-gray-800/60">
-                      {nonImageAttachments.map((att) => {
+                      {nonImageAttachments.map((rawAtt) => {
+                        const att = localAttachments[rawAtt.id] || rawAtt;
                         const isAudio = att.mimetype.startsWith('audio/') || att.mimetype.includes('ogg');
                         const isVideo = att.mimetype.startsWith('video/');
+                        const isPdf =
+                          att.mimetype === 'application/pdf' ||
+                          (att.mimetype === 'application/octet-stream' &&
+                            Boolean(att.file_name?.toLowerCase().endsWith('.pdf')));
                         const isCleaned = !att.file_path || att.file_path.trim().length === 0;
 
                         if (isAudio) {
@@ -551,31 +589,50 @@ export const MessageView: React.FC<MessageViewProps> = ({
                           );
                         }
 
+                        const pdfSummaryBlock = isPdf
+                          ? renderSummaryBlock(att, {
+                              isCleaned,
+                              accent: 'amber',
+                              labels: {
+                                pending: t("Summarizing PDF..."),
+                                completedTitle: t("PDF summary"),
+                                failedFallback: t("PDF summary failed"),
+                                emptyPrompt: t("PDF not summarized yet"),
+                                actionLabel: t("Summarize PDF")
+                              }
+                            })
+                          : null;
+
                         if (isCleaned) {
                           return (
-                            <div key={att.id} className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400 my-1.5">
-                              <FileText className="w-4 h-4 text-gray-500" />
-                              <span className="truncate font-medium">{att.file_name || t("Document")}</span>
-                              <span className="text-[11px] text-gray-500 ml-auto italic">{t("File removed")}</span>
+                            <div key={att.id} className="my-1.5">
+                              <div className="flex items-center gap-2 bg-gray-950/60 p-2.5 rounded-xl border border-gray-800 text-xs text-gray-400">
+                                <FileText className="w-4 h-4 text-gray-500" />
+                                <span className="truncate font-medium">{att.file_name || t("Document")}</span>
+                                <span className="text-[11px] text-gray-500 ml-auto italic">{t("File removed")}</span>
+                              </div>
+                              {pdfSummaryBlock}
                             </div>
                           );
                         }
 
                         return (
-                          <a
-                            key={att.id}
-                            href={getAttachmentUrl(att.id)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 bg-gray-950/50 hover:bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 text-xs text-gray-300 transition group"
-                          >
-                            <FileText className="w-4 h-4 text-amber-400 group-hover:text-amber-300" />
-                            <span className="truncate font-medium">{att.file_name || t("Attachment")}</span>
-                            <span className="text-[11px] text-gray-500 ml-auto group-hover:text-gray-300 flex items-center gap-1">
-                              {att.file_size ? `${Math.round(att.file_size / 1024)} KB` : ''}
-                              <Download className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </span>
-                          </a>
+                          <div key={att.id} className="my-1.5">
+                            <a
+                              href={getAttachmentUrl(att.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-3 bg-gray-950/50 hover:bg-gray-800/60 p-2.5 rounded-lg border border-gray-800 text-xs text-gray-300 transition group"
+                            >
+                              <FileText className="w-4 h-4 text-amber-400 group-hover:text-amber-300" />
+                              <span className="truncate font-medium">{att.file_name || t("Attachment")}</span>
+                              <span className="text-[11px] text-gray-500 ml-auto group-hover:text-gray-300 flex items-center gap-1">
+                                {att.file_size ? `${Math.round(att.file_size / 1024)} KB` : ''}
+                                <Download className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </span>
+                            </a>
+                            {pdfSummaryBlock}
+                          </div>
                         );
                       })}
                     </div>

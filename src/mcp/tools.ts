@@ -44,7 +44,7 @@ export function registerMcpTools(server: McpServer): void {
   // Tool 2: get_chat_history
   server.tool(
     'get_chat_history',
-    'Obtém o histórico de mensagens de um contato ou grupo específico, incluindo transcrições de áudio/imagens e anexos. Por padrão retorna em ordem decrescente (as mais recentes primeiro).',
+    'Obtém o histórico de mensagens de um contato ou grupo específico, incluindo transcrições de áudio/imagens, resumos de PDFs e anexos. Por padrão retorna em ordem decrescente (as mais recentes primeiro).',
     {
       chat_jid: z.string().describe('JID do contato ou grupo (ex: 5511999999999@s.whatsapp.net ou ...@g.us)'),
       limit: z.number().optional().default(50).describe('Quantidade de mensagens a retornar (padrão: 50)'),
@@ -99,7 +99,7 @@ export function registerMcpTools(server: McpServer): void {
       limit: z.number().min(0).optional().default(50).describe('Quantidade máxima de mensagens a retornar (padrão: 50). Use 0 para retornar TODAS as mensagens sem limite.'),
       offset: z.number().optional().default(0).describe('Offset para paginação (padrão: 0)'),
       order: z.enum(['desc', 'asc']).optional().default('desc').describe('Ordem das mensagens: "desc" (mais recentes primeiro, padrão) ou "asc" (mais antigas primeiro)'),
-      include_transcriptions: z.boolean().optional().default(true).describe('Se false, omite o texto completo de transcrições de áudio e imagens nos anexos para reduzir tamanho do payload')
+      include_transcriptions: z.boolean().optional().default(true).describe('Se false, omite o texto completo de transcrições de áudio/imagens e resumos de PDFs nos anexos para reduzir tamanho do payload')
     },
     async ({ date, timezone, chat_jid, since_timestamp, until_timestamp, incoming_only, limit, offset, order, include_transcriptions }) => {
       const result = listMessages({
@@ -157,7 +157,7 @@ export function registerMcpTools(server: McpServer): void {
   // Tool 4: search_messages
   server.tool(
     'search_messages',
-    'Realiza busca textual rápida (Full-Text Search) por palavras-chave ou termos nas mensagens e transcrições de áudio e imagens. Para buscar mensagens por data ou período, utilize a ferramenta list_messages.',
+    'Realiza busca textual rápida (Full-Text Search) por palavras-chave ou termos nas mensagens, transcrições de áudio/imagens e resumos de PDFs. Para buscar mensagens por data ou período, utilize a ferramenta list_messages.',
     {
       query: z.string().describe('Termo ou frase a ser pesquisada'),
       chat_jid: z.string().optional().describe('JID opcional para restringir a busca a uma conversa específica'),
@@ -192,7 +192,7 @@ export function registerMcpTools(server: McpServer): void {
   // Tool 5: get_attachment_info
   server.tool(
     'get_attachment_info',
-    'Consulta os detalhes, caminho local em disco e texto transcrito (áudio ou imagem) de um anexo específico ou de uma mensagem.',
+    'Consulta os detalhes, caminho local em disco e texto transcrito/resumido (áudio, imagem ou PDF) de um anexo específico ou de uma mensagem.',
     {
       attachment_id: z.string().optional().describe('ID do anexo (ex: att_...)'),
       message_id: z.string().optional().describe('ID da mensagem associada')

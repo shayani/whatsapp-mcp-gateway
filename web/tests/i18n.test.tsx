@@ -222,8 +222,95 @@ test('image transcription renders in MessageView (completed, cleaned, and sticke
   );
   assert.ok(enSettings.includes('Automatic image transcription'));
   const ptSettings = render(
-    <SettingsModal isOpen hasGroqKey={false} groqKeyMasked={null} imageTranscriptionEnabled={false} onClose={noop} onSaved={noop} />,
+    <SettingsModal isOpen hasGroqKey={false} groqKeyMasked={null} imageTranscriptionEnabled={false} pdfTranscriptionEnabled={false} onClose={noop} onSaved={noop} />,
     'pt-BR'
   );
   assert.ok(ptSettings.includes('Transcrição automática de imagens'));
+  assert.ok(ptSettings.includes('Resumo automático de PDFs'));
+});
+
+test('PDF summary renders in MessageView (completed, cleaned, and on-demand button)', () => {
+  const chat = {
+    jid: '49241816850664@lid',
+    name: 'Iara Machado',
+    notify_name: null,
+    is_group: 0,
+    is_ignored: 0,
+    unread_count: 0,
+    last_message_timestamp: 1700000000
+  };
+  const messages = [
+    {
+      id: 'm_pdf_done',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000001,
+      message_type: 'document',
+      content: null,
+      attachments: [
+        {
+          id: 'att_pdf_done',
+          message_id: 'm_pdf_done',
+          file_path: '/tmp/fatura.pdf',
+          file_name: 'fatura_11_2026.pdf',
+          mimetype: 'application/pdf',
+          file_size: 2022084,
+          transcription_text: 'Nota fiscal de energia elétrica da Energisa no valor de R$ 193,47.',
+          transcription_status: 'completed' as const
+        }
+      ]
+    },
+    {
+      id: 'm_pdf_cleaned',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000002,
+      message_type: 'document',
+      content: null,
+      attachments: [
+        {
+          id: 'att_pdf_cleaned',
+          message_id: 'm_pdf_cleaned',
+          file_path: '',
+          file_name: 'antigo.pdf',
+          mimetype: 'application/pdf',
+          file_size: 50000,
+          transcription_text: 'Resumo preservado do PDF removido.',
+          transcription_status: 'completed' as const
+        }
+      ]
+    },
+    {
+      id: 'm_pdf_none',
+      chat_jid: chat.jid,
+      sender_jid: chat.jid,
+      from_me: 0,
+      timestamp: 1700000003,
+      message_type: 'document',
+      content: null,
+      attachments: [
+        {
+          id: 'att_pdf_none',
+          message_id: 'm_pdf_none',
+          file_path: '/tmp/comprovante.pdf',
+          file_name: 'comprovante.pdf',
+          mimetype: 'application/pdf',
+          file_size: 89148,
+          transcription_text: null,
+          transcription_status: 'none' as const
+        }
+      ]
+    }
+  ];
+
+  const ptHtml = render(
+    <MessageView chat={chat} messages={messages} isLoading={false} onToggleIgnore={noop} onToggleAllowSend={noop} />,
+    'pt-BR'
+  );
+  assert.ok(ptHtml.includes('Resumo do PDF'));
+  assert.ok(ptHtml.includes('Nota fiscal de energia elétrica da Energisa no valor de R$ 193,47.'));
+  assert.ok(ptHtml.includes('Resumo preservado do PDF removido.'));
+  assert.ok(ptHtml.includes('Resumir PDF'));
 });

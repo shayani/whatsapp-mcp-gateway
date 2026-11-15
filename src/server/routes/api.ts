@@ -9,7 +9,9 @@ import {
   setSetting,
   getEffectiveGroqApiKey,
   isImageTranscriptionEnabled,
-  setImageTranscriptionEnabled
+  setImageTranscriptionEnabled,
+  isPdfTranscriptionEnabled,
+  setPdfTranscriptionEnabled
 } from '../../db/settings.js';
 import { messageFilter } from '../../whatsapp/filter.js';
 import { transcriptionQueue } from '../../transcription/queue.js';
@@ -159,7 +161,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
     return { results };
   });
 
-  // 5. Configurações (ex: Chave Groq e transcrição de imagens)
+  // 5. Configurações (ex: Chave Groq, transcrição de imagens e resumo de PDFs)
   fastify.get('/api/ui/settings', async () => {
     const effectiveGroqKey = getEffectiveGroqApiKey();
     return {
@@ -169,6 +171,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
         ? `${effectiveGroqKey.slice(0, 4)}...${effectiveGroqKey.slice(-4)}`
         : null,
       imageTranscriptionEnabled: isImageTranscriptionEnabled(),
+      pdfTranscriptionEnabled: isPdfTranscriptionEnabled(),
       readOnly: config.readOnly
     };
   });
@@ -176,10 +179,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/api/ui/settings', async (req) => {
     const bodySchema = z.object({
       groq_api_key: z.string().optional(),
-      image_transcription_enabled: z.boolean().optional()
+      image_transcription_enabled: z.boolean().optional(),
+      pdf_transcription_enabled: z.boolean().optional()
     });
 
-    const { groq_api_key, image_transcription_enabled } = bodySchema.parse(req.body);
+    const { groq_api_key, image_transcription_enabled, pdf_transcription_enabled } = bodySchema.parse(req.body);
 
     if (groq_api_key !== undefined) {
       setSetting('groq_api_key', groq_api_key.trim());
@@ -189,7 +193,11 @@ export const apiRoutes: FastifyPluginAsync = async (fastify) => {
       setImageTranscriptionEnabled(image_transcription_enabled);
     }
 
-    if (groq_api_key !== undefined || image_transcription_enabled === true) {
+    if (pdf_transcription_enabled !== undefined) {
+      setPdfTranscriptionEnabled(pdf_transcription_enabled);
+    }
+
+    if (groq_api_key !== undefined || image_transcription_enabled === true || pdf_transcription_enabled === true) {
       // Notifica a fila para processar pendentes imediatamente com a nova configuração
       transcriptionQueue.notifyNewMedia();
     }

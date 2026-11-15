@@ -59,6 +59,7 @@ export interface Settings {
   hasOpenAiKey?: boolean;
   groqKeyMasked: string | null;
   imageTranscriptionEnabled?: boolean;
+  pdfTranscriptionEnabled?: boolean;
   readOnly: boolean;
 }
 
@@ -116,6 +117,7 @@ export async function fetchSettings(): Promise<Settings> {
 export async function saveSettings(payload: {
   groq_api_key?: string;
   image_transcription_enabled?: boolean;
+  pdf_transcription_enabled?: boolean;
 }): Promise<boolean> {
   const res = await fetch('/api/ui/settings', {
     method: 'POST',

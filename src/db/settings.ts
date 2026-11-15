@@ -39,3 +39,14 @@ export function isImageTranscriptionEnabled(): boolean {
 export function setImageTranscriptionEnabled(enabled: boolean): void {
   setSetting('image_transcription_enabled', enabled ? 'true' : 'false');
 }
+
+export function isPdfTranscriptionEnabled(): boolean {
+  const dbValue = getSetting('pdf_transcription_enabled');
+  if (dbValue === 'true') return true;
+  if (dbValue === 'false') return false;
+  return loadYamlConfig().pdf_transcription.enabled !== false;
+}
+
+export function setPdfTranscriptionEnabled(enabled: boolean): void {
+  setSetting('pdf_transcription_enabled', enabled ? 'true' : 'false');
+}

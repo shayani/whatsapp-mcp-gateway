@@ -57,7 +57,7 @@ export async function transcribeImageWithOpenAI(
       }
     ],
     temperature: 0.2,
-    max_tokens: 300
+    max_tokens: 400
   });
 
   const text = completion.choices[0]?.message?.content?.trim();

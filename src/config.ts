@@ -66,7 +66,7 @@ const DEFAULT_YAML_CONFIG: YamlConfig = {
   image_transcription: {
     enabled: true,
     provider: 'groq',
-    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    model: 'qwen/qwen3.8-27b',
     openai_model: 'gpt-4o-mini',
     language: 'pt'
   },
@@ -127,10 +127,10 @@ export const config: AppConfig = {
   dbDir,
   mediaDir,
   configYamlPath,
-  mcpApiKey: process.env.MCP_API_KEY || undefined,
-  dashboardPassword: process.env.DASHBOARD_PASSWORD || undefined,
-  groqApiKey: process.env.GROQ_API_KEY || undefined,
-  openaiApiKey: process.env.OPENAI_API_KEY || undefined,
+  mcpApiKey: process.env.MCP_API_KEY?.trim() || undefined,
+  dashboardPassword: process.env.DASHBOARD_PASSWORD?.trim() || undefined,
+  groqApiKey: process.env.GROQ_API_KEY?.trim() || undefined,
+  openaiApiKey: process.env.OPENAI_API_KEY?.trim() || undefined,
   readOnly: process.env.READ_ONLY !== 'false',
   logLevel: process.env.LOG_LEVEL || 'info'
 };

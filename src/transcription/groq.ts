@@ -43,7 +43,7 @@ export async function transcribeImageWithGroq(
   const prompt = buildImageTranscriptionPrompt(imageCfg.language || yamlConfig.transcription.language || 'pt', caption);
 
   const completion = await groq.chat.completions.create({
-    model: imageCfg.model || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    model: imageCfg.model || 'qwen/qwen3.8-27b',
     messages: [
       {
         role: 'user',
@@ -59,7 +59,7 @@ export async function transcribeImageWithGroq(
       }
     ],
     temperature: 0.2,
-    max_tokens: 300
+    max_tokens: 400
   });
 
   const text = completion.choices[0]?.message?.content?.trim();

@@ -10,6 +10,7 @@ import { StorageModal } from '../src/components/StorageModal';
 import { QrModal } from '../src/components/QrModal';
 import { MessageView } from '../src/components/MessageView';
 import { ChatList } from '../src/components/ChatList';
+import webPkg from '../package.json';
 
 function render(node: React.ReactNode, saved: string | null = null) {
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => saved } });
@@ -313,4 +314,14 @@ test('PDF summary renders in MessageView (completed, cleaned, and on-demand butt
   assert.ok(ptHtml.includes('Nota fiscal de energia elétrica da Energisa no valor de R$ 193,47.'));
   assert.ok(ptHtml.includes('Resumo preservado do PDF removido.'));
   assert.ok(ptHtml.includes('Resumir PDF'));
+});
+
+test('navbar displays MCP Gateway and application version', () => {
+  for (const lang of ['en', 'pt-BR']) {
+    const html = render(<App />, lang);
+    assert.ok(html.includes('MCP Gateway'));
+    assert.ok(html.includes(`v${webPkg.version}`));
+    assert.equal(html.includes('MCP Active'), false);
+    assert.equal(html.includes('MCP Ativo'), false);
+  }
 });

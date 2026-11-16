@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
@@ -24,6 +23,38 @@ import { insertMessage } from '../db/messages.js';
 import { getDatabase } from '../db/index.js';
 import { messageFilter } from './filter.js';
 import { handleMediaDownload } from './media.js';
+import { useAtomicMultiFileAuthState } from './authState.js';
+import { RecentSentMessageCache, resolveBaileysMessage } from './messageStore.js';
+
+export const RECONNECT_BASE_DELAY_MS = 3000;
+export const RECONNECT_MAX_DELAY_MS = 120_000;
+export const RECONNECT_STABILITY_MS = 30_000;
+export const MAX_CONSECUTIVE_515_ATTEMPTS = 5;
+
+export function getMaxReconnectAttempts(): number {
+  const parsed = Number(process.env.WHATSAPP_MAX_RECONNECT_ATTEMPTS);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 20;
+}
+
+export function computeReconnectDelay(
+  attempt: number,
+  options: {
+    baseDelayMs?: number;
+    maxDelayMs?: number;
+    jitterRatio?: number;
+    randomValue?: number;
+  } = {}
+): number {
+  const baseDelayMs = options.baseDelayMs ?? RECONNECT_BASE_DELAY_MS;
+  const maxDelayMs = options.maxDelayMs ?? RECONNECT_MAX_DELAY_MS;
+  const jitterRatio = options.jitterRatio ?? 0.2;
+  const randomValue = options.randomValue ?? Math.random();
+
+  const exponent = Math.max(0, attempt - 1);
+  const capped = Math.min(baseDelayMs * Math.pow(2, exponent), maxDelayMs);
+  const jitterFactor = 1 + (randomValue * 2 - 1) * jitterRatio;
+  return Math.max(500, Math.round(capped * jitterFactor));
+}
 
 export interface WhatsAppServiceState {
   status: 'disconnected' | 'connecting' | 'connected';
@@ -44,6 +75,74 @@ class WhatsAppService {
   };
 
   public isStarting = false;
+  public reconnectAttempts = 0;
+  private consecutive515Count = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private stabilityTimer: NodeJS.Timeout | null = null;
+  private recentSentMessages = new RecentSentMessageCache();
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private clearStabilityTimer(): void {
+    if (this.stabilityTimer) {
+      clearTimeout(this.stabilityTimer);
+      this.stabilityTimer = null;
+    }
+  }
+
+  private cleanupSocket(): void {
+    this.clearStabilityTimer();
+    const sock = this.sock;
+    this.sock = null;
+    if (!sock) return;
+
+    try {
+      const ev = sock.ev as any;
+      if (typeof ev?.removeAllListeners === 'function') {
+        for (const eventName of [
+          'connection.update',
+          'creds.update',
+          'contacts.upsert',
+          'contacts.update',
+          'messaging-history.set',
+          'chats.upsert',
+          'chats.phoneNumberShare',
+          'messages.upsert',
+          'messages.update'
+        ]) {
+          ev.removeAllListeners(eventName);
+        }
+      }
+      if (typeof sock.end === 'function') {
+        sock.end(undefined);
+      }
+    } catch (e) {
+      console.warn('[WhatsApp] Erro ao encerrar socket anterior:', e);
+    }
+  }
+
+  private scheduleReconnect(delayMs: number, reason: string): void {
+    this.clearReconnectTimer();
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.start().catch((err) => {
+        console.error(`[WhatsApp] Falha ao reconectar (${reason}):`, err);
+      });
+    }, delayMs);
+    this.reconnectTimer.unref();
+  }
+
+  public stop(): void {
+    this.clearReconnectTimer();
+    this.cleanupSocket();
+    this.isStarting = false;
+    this.state.status = 'disconnected';
+  }
 
   public cleanAuthDir(): void {
     try {
@@ -60,23 +159,19 @@ class WhatsAppService {
   }
 
   public async restart(forceCleanAuth = false): Promise<void> {
-    if (this.sock) {
-      try {
-        this.sock.ev.removeAllListeners('connection.update');
-        this.sock.end(undefined);
-      } catch (e) {
-        console.warn('[WhatsApp] Erro ao fechar socket anterior:', e);
-      }
-      this.sock = null;
-    }
+    this.clearReconnectTimer();
+    this.cleanupSocket();
 
     this.isStarting = false;
+    this.reconnectAttempts = 0;
+    this.consecutive515Count = 0;
     this.state.status = 'disconnected';
     this.state.qrCodeRaw = null;
     this.state.qrCodeDataUrl = null;
 
     if (forceCleanAuth) {
       this.cleanAuthDir();
+      this.recentSentMessages.clear();
       this.state.userJid = null;
       this.state.userName = null;
     }
@@ -85,13 +180,14 @@ class WhatsAppService {
   }
 
   public async start(): Promise<void> {
-    if (this.isStarting || this.state.status === 'connected') {
+    if (this.isStarting || this.state.status === 'connected' || this.sock !== null) {
       return;
     }
+    this.clearReconnectTimer();
     this.isStarting = true;
 
     try {
-      const { state, saveCreds } = await useMultiFileAuthState(config.authDir);
+      const { state, saveCreds } = await useAtomicMultiFileAuthState(config.authDir);
       const { version, isLatest } = await fetchLatestBaileysVersion();
       console.log(`[WhatsApp] Usando Baileys v${version.join('.')} (última versão: ${isLatest})`);
 
@@ -106,6 +202,7 @@ class WhatsAppService {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, logger)
         },
+        getMessage: async (key) => resolveBaileysMessage(key, this.recentSentMessages),
         generateHighQualityLinkPreview: false,
         syncFullHistory: true,
         shouldSyncHistoryMessage: () => true
@@ -137,8 +234,11 @@ class WhatsAppService {
           console.log(`[WhatsApp] Conexão encerrada (código: ${statusCode}, loggedOut: ${isLoggedOut}, restartRequired: ${isRestartRequired})`);
 
           this.isStarting = false;
+          this.cleanupSocket();
 
           if (isLoggedOut) {
+            this.reconnectAttempts = 0;
+            this.consecutive515Count = 0;
             this.state.status = 'disconnected';
             this.state.qrCodeRaw = null;
             this.state.qrCodeDataUrl = null;
@@ -146,17 +246,36 @@ class WhatsAppService {
             this.state.userName = null;
             console.log('[WhatsApp] Sessão encerrada permanentemente (401 / loggedOut). Limpando credenciais para permitir novo pareamento via QR Code...');
             this.cleanAuthDir();
-            setTimeout(() => this.start(), 1000);
-          } else if (isRestartRequired) {
+            this.recentSentMessages.clear();
+            this.scheduleReconnect(1000, 'loggedOut');
+          } else if (isRestartRequired && this.consecutive515Count < MAX_CONSECUTIVE_515_ATTEMPTS) {
+            this.consecutive515Count += 1;
             this.state.status = 'connecting';
-            console.log('[WhatsApp] Reinício necessário para concluir conexão (código 515). Reconectando imediatamente com as credenciais salvas...');
-            // As credenciais de pareamento acabaram de ser gravadas pelo Baileys. Reconecta imediatamente para finalizar o handshake com o celular!
-            setTimeout(() => this.start(), 300);
+            console.log(
+              `[WhatsApp] Reinício necessário para concluir conexão (código 515, tentativa ${this.consecutive515Count}/${MAX_CONSECUTIVE_515_ATTEMPTS}). Reconectando com as credenciais salvas...`
+            );
+            this.scheduleReconnect(300, 'restartRequired');
           } else {
+            this.consecutive515Count = 0;
             this.state.status = 'disconnected';
             this.state.qrCodeRaw = null;
             this.state.qrCodeDataUrl = null;
-            setTimeout(() => this.start(), 3000);
+
+            const maxAttempts = getMaxReconnectAttempts();
+            this.reconnectAttempts += 1;
+
+            if (this.reconnectAttempts > maxAttempts) {
+              console.error(
+                `[WhatsApp] Limite máximo de reconexões consecutivas (${maxAttempts}) atingido (último código: ${statusCode ?? 'desconhecido'}). Reconexão automática pausada; use /api/auth/reconnect ou reinicie o serviço.`
+              );
+              return;
+            }
+
+            const delayMs = computeReconnectDelay(this.reconnectAttempts);
+            console.log(
+              `[WhatsApp] Reconectando em ${(delayMs / 1000).toFixed(1)}s (tentativa ${this.reconnectAttempts}/${maxAttempts})...`
+            );
+            this.scheduleReconnect(delayMs, `code_${statusCode ?? 'unknown'}`);
           }
         } else if (connection === 'open') {
           this.state.status = 'connected';
@@ -164,6 +283,16 @@ class WhatsAppService {
           this.state.qrCodeDataUrl = null;
           this.state.userJid = this.sock?.user?.id || null;
           this.state.userName = this.sock?.user?.name || null;
+          this.consecutive515Count = 0;
+
+          // Só zera o contador de backoff se a conexão permanecer estável
+          this.clearStabilityTimer();
+          this.stabilityTimer = setTimeout(() => {
+            if (this.state.status === 'connected') {
+              this.reconnectAttempts = 0;
+            }
+          }, RECONNECT_STABILITY_MS);
+          this.stabilityTimer.unref();
 
           console.log(`✅ [WhatsApp] Conectado com sucesso como: ${this.state.userName || this.state.userJid}`);
           this.syncAllGroupsAndCommunities().catch(() => {});
@@ -347,6 +476,21 @@ class WhatsAppService {
       });
     } catch (err) {
       console.error('[WhatsApp] Erro fatal ao iniciar serviço Baileys:', err);
+      this.cleanupSocket();
+      this.state.status = 'disconnected';
+      const maxAttempts = getMaxReconnectAttempts();
+      this.reconnectAttempts += 1;
+      if (this.reconnectAttempts <= maxAttempts) {
+        const delayMs = computeReconnectDelay(this.reconnectAttempts);
+        console.log(
+          `[WhatsApp] Reagendando inicialização em ${(delayMs / 1000).toFixed(1)}s (tentativa ${this.reconnectAttempts}/${maxAttempts})...`
+        );
+        this.scheduleReconnect(delayMs, 'start_error');
+      } else {
+        console.error(
+          `[WhatsApp] Limite máximo de reconexões consecutivas (${maxAttempts}) atingido após erro de inicialização.`
+        );
+      }
     } finally {
       this.isStarting = false;
     }
@@ -689,6 +833,8 @@ class WhatsAppService {
     const sent = await this.sock.sendMessage(targetJid, { text });
     const messageId = sent?.key?.id || `msg_out_${now}_${Math.random().toString(36).substring(7)}`;
     const timestamp = Math.floor(now / 1000);
+    const protoMsg = sent?.message || { conversation: text };
+    this.recentSentMessages.set(messageId, protoMsg);
 
     // Registra o timestamp para rate limiting
     history.push(now);
@@ -707,7 +853,7 @@ class WhatsAppService {
       raw_json: JSON.stringify({
         source,
         key: sent?.key,
-        message: { conversation: text }
+        message: protoMsg
       })
     });
 

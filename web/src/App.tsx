@@ -1,5 +1,6 @@
 import { useI18n } from './i18n';
 import React, { useState, useEffect, useCallback } from 'react';
+import webPkg from '../package.json';
 import {
   MessageSquare,
   Search,
@@ -239,10 +240,10 @@ export const App: React.FC = () => {
                 <MessageSquare className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-gray-100 flex items-center gap-1.5 sm:gap-2">
-                  <span className="hidden xs:inline">WhatsApp</span> Gateway
-                  <span className="text-[10px] font-normal px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 hidden lg:inline-block">
-                    {t("MCP Active")}
+                <h1 className="text-sm font-bold text-gray-100 flex items-baseline gap-1.5">
+                  <span>MCP Gateway</span>
+                  <span className="text-[11px] font-normal text-gray-400">
+                    v{webPkg.version}
                   </span>
                 </h1>
               </div>
